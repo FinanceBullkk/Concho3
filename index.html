@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule Manager</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2C5282;--primary-h:#1A365D;--accent:#4299E1;
+  --bg:#F0F4F8;--surface:#fff;--border:#E2E8F0;
+  --text:#2D3748;--muted:#718096;
+  --today-bg:#EBF8FF;--dot:#ED8936;
+  --shadow:0 1px 4px rgba(0,0,0,.12);--r:6px;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+#app{max-width:1280px;margin:0 auto;padding:16px 20px}
+
+/* ── TOOLBAR ── */
+#toolbar{display:flex;align-items:center;gap:10px;background:var(--surface);
+  padding:10px 16px;border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px}
+.nav-btn{background:none;border:1px solid var(--border);border-radius:4px;
+  width:30px;height:30px;cursor:pointer;font-size:18px;line-height:1;
+  color:var(--text);transition:background .12s}
+.nav-btn:hover{background:var(--bg)}
+#month-title{display:flex;align-items:center;gap:10px;flex:1}
+#month-label{font-size:20px;font-weight:700;color:var(--primary)}
+#status-badge{padding:3px 11px;border-radius:20px;background:#FED7AA;color:#9C4221;
+  font-size:12px;font-weight:600;cursor:text;min-width:72px;text-align:center;
+  outline:none;border:1.5px solid transparent;transition:border-color .15s,background .15s}
+#status-badge:focus{border-color:#F97316;background:#FFF7ED}
+.tbtn{padding:6px 13px;border-radius:4px;border:1px solid var(--border);
+  background:var(--surface);cursor:pointer;font-size:13px;color:var(--text);
+  white-space:nowrap;transition:background .12s}
+.tbtn:hover{background:var(--bg)}
+
+/* ── CALENDAR ── */
+#cal-wrap{background:var(--surface);border-radius:var(--r);
+  box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
+#cal-head{display:grid;grid-template-columns:repeat(5,1fr);background:var(--primary)}
+.col-hdr{padding:9px;text-align:center;font-size:11px;font-weight:700;
+  letter-spacing:.09em;color:#fff;text-transform:uppercase}
+
+/* ── WEEK ROW ── */
+.week-row{position:relative;border-bottom:1px solid var(--border)}
+.week-row:last-child{border-bottom:none}
+.days-grid{display:grid;grid-template-columns:repeat(5,1fr);height:100%}
+.day-cell{border-right:1px solid var(--border);cursor:pointer;
+  position:relative;transition:background .1s}
+.day-cell:last-child{border-right:none}
+.day-cell:hover{background:#F7FAFC}
+.day-cell.other-month .day-num{opacity:.38}
+.day-cell.is-today{background:var(--today-bg)}
+.day-cell.is-today .day-num{color:var(--accent);font-weight:700}
+.day-num-area{display:flex;align-items:center;gap:5px;padding:5px 8px;height:34px}
+.day-dot{width:7px;height:7px;border-radius:50%;background:var(--dot);flex-shrink:0}
+.day-num{font-size:13px;font-weight:600;color:var(--muted);pointer-events:none}
+.day-cell.drop-hi{background:#BEE3F8!important}
+
+/* ── EVENT BAR ── */
+.ev-bar{position:absolute;height:22px;display:flex;align-items:center;
+  font-size:11.5px;font-weight:500;cursor:grab;user-select:none;z-index:2;
+  overflow:hidden;border-radius:3px}
+.ev-bar:active{cursor:grabbing}
+.ev-bar.dragging{opacity:.25;pointer-events:none}
+.ev-bar .ev-title{flex:1;padding:0 5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;pointer-events:none}
+.rh{width:8px;height:100%;cursor:ew-resize;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
+.ev-bar:hover .rh{opacity:.75}
+.rh::after{content:'';width:2px;height:10px;background:currentColor;border-radius:1px}
+.ev-bar.is-start{border-top-left-radius:3px;border-bottom-left-radius:3px}
+.ev-bar:not(.is-start){border-top-left-radius:0;border-bottom-left-radius:0}
+.ev-bar.is-end{border-top-right-radius:3px;border-bottom-right-radius:3px}
+.ev-bar:not(.is-end){border-top-right-radius:0;border-bottom-right-radius:0}
+
+/* Drag ghost */
+.drag-ghost{position:fixed;height:22px;border-radius:3px;opacity:.85;
+  pointer-events:none;z-index:9999;display:flex;align-items:center;
+  padding:0 8px;font-size:11.5px;font-weight:500;white-space:nowrap;
+  box-shadow:0 4px 12px rgba(0,0,0,.25)}
+
+/* ── MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;
+  display:flex;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  padding:24px;min-width:380px;max-width:500px;width:90%}
+.modal-title{font-size:17px;font-weight:700;color:var(--primary);margin-bottom:18px}
+.fg{margin-bottom:13px}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--muted);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+.fi,.fs{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;
+  font-size:14px;outline:none;transition:border-color .15s;font-family:inherit}
+.fi:focus,.fs:focus{border-color:var(--accent)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mact{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.btn{padding:7px 16px;border-radius:4px;border:1px solid var(--border);
+  font-size:14px;cursor:pointer;font-weight:500;transition:background .12s;font-family:inherit}
+.btn-p{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-p:hover{background:var(--primary-h)}
+.btn-d{background:#E53E3E;color:#fff;border-color:#E53E3E}
+.btn-d:hover{background:#C53030}
+.btn-s{background:#fff;color:var(--text)}
+.btn-s:hover{background:var(--bg)}
+
+/* ── CATEGORY MODAL ── */
+.cat-list{list-style:none;margin-bottom:14px;max-height:260px;overflow-y:auto}
+.cat-item{display:flex;align-items:center;gap:9px;padding:7px 4px;
+  border-bottom:1px solid var(--border)}
+.cat-swatch{width:26px;height:18px;border-radius:3px;flex-shrink:0;
+  border:1px solid rgba(0,0,0,.1)}
+.cat-name-lbl{flex:1;font-size:14px}
+.cat-btn{padding:3px 8px;border-radius:3px;border:1px solid var(--border);
+  font-size:12px;cursor:pointer;background:#fff;transition:background .1s}
+.cat-btn:hover{background:var(--bg)}
+.cat-btn.del{color:#E53E3E;border-color:#FEB2B2}
+.cat-btn.del:hover{background:#FFF5F5}
+.cat-sep{border-top:1px solid var(--border);padding-top:14px;margin-top:4px}
+.cat-sub{font-size:13px;font-weight:600;margin-bottom:11px;color:var(--text)}
+.crow{display:flex;gap:10px;align-items:flex-end}
+.cgrp{flex:1}
+.cpick{display:flex;align-items:center;gap:6px;border:1px solid var(--border);
+  border-radius:4px;padding:4px 8px;cursor:pointer}
+.cpick input[type=color]{width:26px;height:20px;border:none;padding:0;
+  cursor:pointer;background:none}
+.chex{font-size:12px;color:var(--muted);font-family:monospace}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <button class="nav-btn" id="btn-prev">&#8249;</button>
+    <div id="month-title">
+      <span id="month-label"></span>
+      <span id="status-badge" contenteditable="true" spellcheck="false">Tentative</span>
+    </div>
+    <button class="nav-btn" id="btn-next">&#8250;</button>
+    <div style="flex:1"></div>
+    <button class="tbtn" id="btn-cats">&#9632; Categories</button>
+    <button class="tbtn" id="btn-export">&#8593; Export</button>
+    <button class="tbtn" id="btn-import">&#8595; Import</button>
+    <input type="file" id="file-inp" accept=".json" style="display:none">
+  </div>
+  <div id="cal-wrap">
+    <div id="cal-head">
+      <div class="col-hdr">MON</div>
+      <div class="col-hdr">TUE</div>
+      <div class="col-hdr">WED</div>
+      <div class="col-hdr">THU</div>
+      <div class="col-hdr">FRI</div>
+    </div>
+    <div id="cal-grid"></div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<div id="ev-modal" class="modal-ov" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title" id="ev-modal-title">New Event</div>
+    <div class="fg">
+      <label class="fl">Title</label>
+      <input type="text" class="fi" id="ev-title" placeholder="Event title">
+    </div>
+    <div class="fg frow">
+      <div><label class="fl">Start Date</label><input type="date" class="fi" id="ev-start"></div>
+      <div><label class="fl">End Date</label><input type="date" class="fi" id="ev-end"></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Category</label>
+      <select class="fs" id="ev-cat"></select>
+    </div>
+    <div class="mact" id="ev-actions"></div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div id="cat-modal" class="modal-ov" style="display:none">
+  <div class="modal-box" style="min-width:430px">
+    <div class="modal-title">Manage Categories</div>
+    <ul class="cat-list" id="cat-list"></ul>
+    <div class="cat-sep">
+      <div class="cat-sub" id="cat-form-lbl">Add New Category</div>
+      <input type="hidden" id="cat-eid">
+      <div class="fg">
+        <label class="fl">Name</label>
+        <input type="text" class="fi" id="cat-name" placeholder="Category name">
+      </div>
+      <div class="crow">
+        <div class="cgrp">
+          <label class="fl">Background</label>
+          <div class="cpick" onclick="document.getElementById('cbg').click()">
+            <input type="color" id="cbg" value="#4A90D9"
+              oninput="document.getElementById('cbg-hex').textContent=this.value">
+            <span class="chex" id="cbg-hex">#4A90D9</span>
+          </div>
+        </div>
+        <div class="cgrp">
+          <label class="fl">Text</label>
+          <div class="cpick" onclick="document.getElementById('ctxt').click()">
+            <input type="color" id="ctxt" value="#ffffff"
+              oninput="document.getElementById('ctxt-hex').textContent=this.value">
+            <span class="chex" id="ctxt-hex">#ffffff</span>
+          </div>
+        </div>
+        <button class="btn btn-p" id="cat-save" style="margin-bottom:0;padding:8px 14px">Add</button>
+      </div>
+    </div>
+    <div class="mact">
+      <button class="btn btn-s" id="cat-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════
+const SK = { ev:'schedcal_events', cats:'schedcal_categories', sts:'schedcal_statuses' };
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+const HDR_H  = 34;   // px – date-number strip
+const EV_H   = 22;   // px – bar height
+const EV_GAP = 4;    // px – gap between bars
+const TRACK_H = EV_H + EV_GAP;
+const PAD_B   = 8;   // px – bottom padding in row
+const EV_PAD  = 2;   // px – left/right inset per cell edge
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const S = {
+  events: [],
+  cats: [],
+  statuses: {},
+  year: new Date().getFullYear(),
+  month: new Date().getMonth(),   // 0-based
+};
+
+let editEvId  = null;
+let dragSt    = null;
+let resizeSt  = null;
+let ghostEl   = null;
+
+// ═══════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════
+function load() {
+  try {
+    const e = localStorage.getItem(SK.ev);
+    const c = localStorage.getItem(SK.cats);
+    const s = localStorage.getItem(SK.sts);
+    if (e) S.events = JSON.parse(e);
+    S.cats = c ? JSON.parse(c) : defaultCats();
+    if (s) S.statuses = JSON.parse(s);
+  } catch(_) { S.cats = defaultCats(); }
+}
+function save() {
+  localStorage.setItem(SK.ev,   JSON.stringify(S.events));
+  localStorage.setItem(SK.cats, JSON.stringify(S.cats));
+  localStorage.setItem(SK.sts,  JSON.stringify(S.statuses));
+}
+function defaultCats() {
+  return [
+    { id: uid(), name: 'Work',     bg: '#4A90D9', fg: '#ffffff' },
+    { id: uid(), name: 'Meeting',  bg: '#E8853D', fg: '#ffffff' },
+    { id: uid(), name: 'Personal', bg: '#48BB78', fg: '#ffffff' },
+  ];
+}
+
+// ═══════════════════════════════════════════════
+//  DATE UTILS
+// ═══════════════════════════════════════════════
+function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36); }
+
+function ds(d) {                         // Date → "YYYY-MM-DD"
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function sd(s) {                         // "YYYY-MM-DD" → Date (local)
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function addD(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function p2(n) { return String(n).padStart(2,'0'); }
+function sameDay(a,b) {
+  return a.getFullYear()===b.getFullYear() &&
+         a.getMonth()===b.getMonth() &&
+         a.getDate()===b.getDate();
+}
+function monday(d) {               // Monday of the week containing d
+  const r = new Date(d);
+  const dow = r.getDay();          // 0=Sun
+  r.setDate(r.getDate() - (dow === 0 ? 6 : dow - 1));
+  return r;
+}
+
+// ═══════════════════════════════════════════════
+//  CALENDAR STRUCTURE
+// ═══════════════════════════════════════════════
+// Returns array of 5-element arrays [Mon..Fri]
+function weeksOfMonth(year, month) {
+  const first = new Date(year, month, 1);
+  const last  = new Date(year, month+1, 0);
+  let wStart  = monday(first);
+  const weeks = [];
+  while (wStart <= last) {
+    weeks.push(Array.from({length:5}, (_,i) => addD(wStart, i)));
+    wStart = addD(wStart, 7);
+  }
+  return weeks;
+}
+
+// ═══════════════════════════════════════════════
+//  EVENT SEGMENT EXTRACTION
+// ═══════════════════════════════════════════════
+function segmentsForWeek(weekDates) {
+  const mon = weekDates[0], fri = weekDates[4];
+  const monS = ds(mon), friS = ds(fri);
+  // Monday of previous week → Friday of previous week = mon - 3
+  const prevFri = addD(mon, -3);
+  // Monday of next week = fri + 3
+  const nextMon = addD(fri, 3);
+
+  const segs = [];
+  for (const ev of S.events) {
+    if (ev.end < monS || ev.start > friS) continue;
+
+    const clipS = ev.start < monS ? monS : ev.start;
+    const clipE = ev.end   > friS ? friS : ev.end;
+
+    const sc = Math.round((sd(clipS) - mon) / 864e5);
+    const ec = Math.round((sd(clipE) - mon) / 864e5);
+    if (sc > 4 || ec < 0) continue;
+
+    const isStart = sd(ev.start) > prevFri;       // no visible segment in prev week
+    const isEnd   = sd(ev.end)   < nextMon;       // no visible segment in next week
+
+    segs.push({ ev, sc: Math.max(0,sc), ec: Math.min(4,ec), isStart, isEnd, track:0 });
+  }
+
+  assignTracks(segs);
+  return segs;
+}
+
+function assignTracks(segs) {
+  segs.sort((a,b) => a.sc - b.sc || a.ev.id.localeCompare(b.ev.id));
+  const ends = [];   // ends[track] = last ec in that track
+  for (const s of segs) {
+    let placed = false;
+    for (let t = 0; t < ends.length; t++) {
+      if (ends[t] < s.sc) { s.track = t; ends[t] = s.ec; placed = true; break; }
+    }
+    if (!placed) { s.track = ends.length; ends.push(s.ec); }
+  }
+}
+
+function getCat(id) {
+  return S.cats.find(c => c.id === id) || { bg:'#CBD5E0', fg:'#4A5568', name:'?' };
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════
+function render() {
+  const {year, month} = S;
+  const today = new Date();
+  const mKey  = `${year}-${p2(month+1)}`;
+
+  document.getElementById('month-label').textContent = `${MONTHS[month]} ${year}`;
+
+  const badge = document.getElementById('status-badge');
+  badge.textContent = S.statuses[mKey] ?? 'Tentative';
+
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  for (const wk of weeksOfMonth(year, month)) {
+    const segs   = segmentsForWeek(wk);
+    const maxTrk = segs.length ? Math.max(...segs.map(s=>s.track))+1 : 0;
+    const rowH   = HDR_H + maxTrk * TRACK_H + PAD_B;
+
+    const row = document.createElement('div');
+    row.className = 'week-row';
+    row.style.height = rowH + 'px';
+
+    // Day cells
+    const dg = document.createElement('div');
+    dg.className = 'days-grid';
+
+    for (let col = 0; col < 5; col++) {
+      const d   = wk[col];
+      const dStr= ds(d);
+      const cell= document.createElement('div');
+      cell.className = 'day-cell' +
+        (d.getMonth()!==month ? ' other-month' : '') +
+        (sameDay(d, today)    ? ' is-today'    : '');
+      cell.dataset.date = dStr;
+
+      const na = document.createElement('div');
+      na.className = 'day-num-area';
+      const dot = document.createElement('span');
+      dot.className = 'day-dot';
+      const num = document.createElement('span');
+      num.className = 'day-num';
+      num.textContent = d.getDate();
+      na.appendChild(dot);
+      na.appendChild(num);
+      cell.appendChild(na);
+
+      cell.addEventListener('click', () => openEvModal(null, dStr));
+      dg.appendChild(cell);
+    }
+    row.appendChild(dg);
+
+    // Event bars
+    for (const seg of segs) {
+      row.appendChild(makeBar(seg));
+    }
+
+    grid.appendChild(row);
+  }
+}
+
+function makeBar(seg) {
+  const {ev, sc, ec, isStart, isEnd, track} = seg;
+  const cat = getCat(ev.catId);
+  const colW = 100/5;
+
+  const bar = document.createElement('div');
+  bar.className = 'ev-bar' +
+    (isStart ? ' is-start' : '') +
+    (isEnd   ? ' is-end'   : '');
+  bar.dataset.eid = ev.id;
+  bar.style.cssText = `
+    background:${cat.bg};color:${cat.fg};
+    left:calc(${sc*colW}% + ${EV_PAD}px);
+    width:calc(${(ec-sc+1)*colW}% - ${EV_PAD*2}px);
+    top:${HDR_H + track*TRACK_H}px;
+  `;
+
+  // Left resize handle (only if this is the start segment)
+  if (isStart) {
+    const lh = document.createElement('div');
+    lh.className = 'rh';
+    lh.style.color = cat.fg;
+    lh.addEventListener('mousedown', e => { e.stopPropagation(); startResize(e, ev.id, 'left'); });
+    bar.appendChild(lh);
+  } else {
+    const sp = document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
+  }
+
+  const title = document.createElement('span');
+  title.className = 'ev-title';
+  title.textContent = ev.title;
+  bar.appendChild(title);
+
+  // Right resize handle (only if this is the end segment)
+  if (isEnd) {
+    const rh = document.createElement('div');
+    rh.className = 'rh';
+    rh.style.color = cat.fg;
+    rh.addEventListener('mousedown', e => { e.stopPropagation(); startResize(e, ev.id, 'right'); });
+    bar.appendChild(rh);
+  } else {
+    const sp = document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
+  }
+
+  // Drag start (edit if mouse didn't move)
+  bar.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.classList.contains('rh')) return;
+    e.stopPropagation();
+    startDrag(e, ev.id);
+  });
+
+  return bar;
+}
+
+// ═══════════════════════════════════════════════
+//  DRAG & DROP
+// ═══════════════════════════════════════════════
+function startDrag(e, eid) {
+  e.preventDefault();
+  const ev = S.events.find(x=>x.id===eid); if (!ev) return;
+  // Just record initial state — ghost & drag class created only after mouse moves 5px
+  dragSt = {
+    eid,
+    origStart: ev.start, origEnd: ev.end,
+    anchor: null,
+    startX: e.clientX, startY: e.clientY,
+    isDragging: false,
+    previewStart: null, previewEnd: null,
+  };
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup',   onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!dragSt) return;
+
+  // Activate drag only after 5px movement threshold
+  if (!dragSt.isDragging) {
+    const dx = e.clientX - dragSt.startX;
+    const dy = e.clientY - dragSt.startY;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+
+    dragSt.isDragging = true;
+    // Determine anchor date from original mousedown position
+    const anchorCell = document.elementFromPoint(dragSt.startX, dragSt.startY)?.closest('[data-date]');
+    dragSt.anchor = anchorCell?.dataset.date ?? dragSt.origStart;
+
+    const ev  = S.events.find(x=>x.id===dragSt.eid);
+    const cat = getCat(ev.catId);
+    document.querySelectorAll(`[data-eid="${dragSt.eid}"]`).forEach(b => b.classList.add('dragging'));
+    ghostEl = document.createElement('div');
+    ghostEl.className = 'drag-ghost';
+    ghostEl.textContent = ev.title;
+    ghostEl.style.background = cat.bg;
+    ghostEl.style.color = cat.fg;
+    document.body.appendChild(ghostEl);
+  }
+
+  if (ghostEl) Object.assign(ghostEl.style, { top:e.clientY-11+'px', left:e.clientX+12+'px' });
+  document.querySelectorAll('.drop-hi').forEach(el => el.classList.remove('drop-hi'));
+
+  const dateStr = dateUnderCursor(e.clientX, e.clientY);
+  if (!dateStr) return;
+  const cell = document.querySelector(`[data-date="${dateStr}"]`);
+  if (cell) cell.classList.add('drop-hi');
+
+  const delta = Math.round((sd(dateStr) - sd(dragSt.anchor)) / 864e5);
+  dragSt.previewStart = ds(addD(sd(dragSt.origStart), delta));
+  dragSt.previewEnd   = ds(addD(sd(dragSt.origEnd),   delta));
+}
+
+function onDragEnd(e) {
+  if (!dragSt) return;
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup',   onDragEnd);
+  if (ghostEl) { ghostEl.remove(); ghostEl = null; }
+  document.querySelectorAll('.drop-hi').forEach(el => el.classList.remove('drop-hi'));
+
+  const { eid, isDragging, previewStart, previewEnd } = dragSt;
+  dragSt = null;
+
+  if (!isDragging) {
+    // Plain click → open edit modal
+    openEvModal(eid, null);
+    return;
+  }
+
+  if (previewStart) {
+    const ev = S.events.find(x=>x.id===eid);
+    if (ev) { ev.start = previewStart; ev.end = previewEnd; save(); }
+  }
+  render();
+}
+
+function dateUnderCursor(x, y) {
+  if (ghostEl) ghostEl.style.display = 'none';
+  const el = document.elementFromPoint(x, y);
+  if (ghostEl) ghostEl.style.display = '';
+  return el?.closest('[data-date]')?.dataset.date ?? null;
+}
+
+// ═══════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════
+function startResize(e, eid, handle) {
+  e.preventDefault();
+  const ev = S.events.find(x=>x.id===eid); if (!ev) return;
+  resizeSt = { eid, handle, origStart: ev.start, origEnd: ev.end };
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup',   onResizeEnd);
+}
+
+function onResizeMove(e) {
+  if (!resizeSt) return;
+  const dateStr = dateUnderCursor(e.clientX, e.clientY);
+  if (!dateStr) return;
+  const ev = S.events.find(x=>x.id===resizeSt.eid); if (!ev) return;
+
+  if (resizeSt.handle === 'left') {
+    if (dateStr <= ev.end) ev.start = dateStr;
+  } else {
+    if (dateStr >= ev.start) ev.end = dateStr;
+  }
+  render();
+}
+
+function onResizeEnd() {
+  if (!resizeSt) return;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup',   onResizeEnd);
+
+  const ev = S.events.find(x=>x.id===resizeSt.eid);
+  if (ev) {
+    // Enforce minimum 1 day
+    if (ev.start > ev.end) {
+      if (resizeSt.handle==='left') ev.start = ev.end;
+      else ev.end = ev.start;
+    }
+    save();
+  }
+  resizeSt = null;
+  render();
+}
+
+// ═══════════════════════════════════════════════
+//  EVENT MODAL
+// ═══════════════════════════════════════════════
+function openEvModal(eid, defaultDate) {
+  editEvId = eid;
+  const catSel = document.getElementById('ev-cat');
+  catSel.innerHTML = S.cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+  const titleEl   = document.getElementById('ev-modal-title');
+  const actionsEl = document.getElementById('ev-actions');
+
+  if (eid) {
+    const ev = S.events.find(x=>x.id===eid); if (!ev) return;
+    titleEl.textContent = 'Edit Event';
+    document.getElementById('ev-title').value = ev.title;
+    document.getElementById('ev-start').value = ev.start;
+    document.getElementById('ev-end').value   = ev.end;
+    catSel.value = ev.catId;
+
+    actionsEl.innerHTML = '';
+    const del = btn('Delete','btn-d'); del.addEventListener('click', deleteEv);
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;gap:8px';
+    const can = btn('Cancel','btn-s'); can.addEventListener('click', closeEvModal);
+    const sav = btn('Save','btn-p');   sav.addEventListener('click', saveEv);
+    row.append(can, sav);
+    actionsEl.append(del, row);
+    actionsEl.style.justifyContent = 'space-between';
+  } else {
+    titleEl.textContent = 'New Event';
+    document.getElementById('ev-title').value = '';
+    document.getElementById('ev-start').value = defaultDate||'';
+    document.getElementById('ev-end').value   = defaultDate||'';
+    if (S.cats.length) catSel.value = S.cats[0].id;
+
+    actionsEl.innerHTML = '';
+    const can = btn('Cancel','btn-s'); can.addEventListener('click', closeEvModal);
+    const sav = btn('Save','btn-p');   sav.addEventListener('click', saveEv);
+    actionsEl.append(can, sav);
+    actionsEl.style.justifyContent = 'flex-end';
+  }
+
+  document.getElementById('ev-modal').style.display = 'flex';
+  setTimeout(()=>document.getElementById('ev-title').focus(), 50);
+}
+
+function closeEvModal() {
+  document.getElementById('ev-modal').style.display = 'none';
+  editEvId = null;
+}
+
+function saveEv() {
+  const title = document.getElementById('ev-title').value.trim();
+  const start = document.getElementById('ev-start').value;
+  const end   = document.getElementById('ev-end').value;
+  const catId = document.getElementById('ev-cat').value;
+  if (!title) { alert('Please enter a title.'); return; }
+  if (!start) { alert('Please select a start date.'); return; }
+  if (!end)   { alert('Please select an end date.'); return; }
+  if (end < start) { alert('End date must be on or after start date.'); return; }
+
+  if (editEvId) {
+    const ev = S.events.find(x=>x.id===editEvId);
+    if (ev) Object.assign(ev, {title, start, end, catId});
+  } else {
+    S.events.push({id:uid(), title, start, end, catId});
+  }
+  save(); closeEvModal(); render();
+}
+
+function deleteEv() {
+  if (!confirm('Delete this event?')) return;
+  S.events = S.events.filter(x=>x.id!==editEvId);
+  save(); closeEvModal(); render();
+}
+
+// ═══════════════════════════════════════════════
+//  CATEGORY MODAL
+// ═══════════════════════════════════════════════
+function openCatModal() {
+  renderCatList();
+  resetCatForm();
+  document.getElementById('cat-modal').style.display = 'flex';
+}
+function closeCatModal() { document.getElementById('cat-modal').style.display = 'none'; }
+
+function renderCatList() {
+  const ul = document.getElementById('cat-list');
+  ul.innerHTML = '';
+  for (const c of S.cats) {
+    const li = document.createElement('li');
+    li.className = 'cat-item';
+    const sw = document.createElement('div');
+    sw.className = 'cat-swatch';
+    sw.style.background = c.bg;
+    const nm = document.createElement('span'); nm.className='cat-name-lbl'; nm.textContent=c.name;
+    const eb = catBtn('Edit',  '');    eb.addEventListener('click',()=>editCat(c.id));
+    const db = catBtn('Delete','del'); db.addEventListener('click',()=>deleteCat(c.id));
+    li.append(sw, nm, eb, db);
+    ul.appendChild(li);
+  }
+}
+
+function catBtn(txt, cls) {
+  const b = document.createElement('button');
+  b.className = 'cat-btn ' + cls;
+  b.textContent = txt;
+  return b;
+}
+
+function editCat(id) {
+  const c = S.cats.find(x=>x.id===id); if (!c) return;
+  document.getElementById('cat-eid').value       = id;
+  document.getElementById('cat-name').value      = c.name;
+  document.getElementById('cbg').value           = c.bg;
+  document.getElementById('cbg-hex').textContent = c.bg;
+  document.getElementById('ctxt').value          = c.fg;
+  document.getElementById('ctxt-hex').textContent= c.fg;
+  document.getElementById('cat-form-lbl').textContent = 'Edit Category';
+  document.getElementById('cat-save').textContent     = 'Update';
+}
+
+function resetCatForm() {
+  document.getElementById('cat-eid').value        = '';
+  document.getElementById('cat-name').value       = '';
+  document.getElementById('cbg').value            = '#4A90D9';
+  document.getElementById('cbg-hex').textContent  = '#4A90D9';
+  document.getElementById('ctxt').value           = '#ffffff';
+  document.getElementById('ctxt-hex').textContent = '#ffffff';
+  document.getElementById('cat-form-lbl').textContent = 'Add New Category';
+  document.getElementById('cat-save').textContent     = 'Add';
+}
+
+function saveCat() {
+  const eid  = document.getElementById('cat-eid').value;
+  const name = document.getElementById('cat-name').value.trim();
+  const bg   = document.getElementById('cbg').value;
+  const fg   = document.getElementById('ctxt').value;
+  if (!name) { alert('Enter a category name.'); return; }
+
+  if (eid) {
+    const c = S.cats.find(x=>x.id===eid);
+    if (c) Object.assign(c, {name, bg, fg});
+  } else {
+    S.cats.push({id:uid(), name, bg, fg});
+  }
+  save(); renderCatList(); resetCatForm(); render();
+}
+
+function deleteCat(id) {
+  const used = S.events.filter(e=>e.catId===id).length;
+  const msg  = used
+    ? `This category is used by ${used} event(s). Delete anyway? Affected events will use the default style.`
+    : 'Delete this category?';
+  if (!confirm(msg)) return;
+  S.cats = S.cats.filter(c=>c.id!==id);
+  save(); renderCatList(); render();
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORT / IMPORT
+// ═══════════════════════════════════════════════
+function exportData() {
+  const blob = new Blob([JSON.stringify({version:1,events:S.events,cats:S.cats,statuses:S.statuses},null,2)],
+    {type:'application/json'});
+  const a = Object.assign(document.createElement('a'),
+    {href:URL.createObjectURL(blob), download:`schedule-${ds(new Date())}.json`});
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importData(file) {
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (!Array.isArray(d.events) || !Array.isArray(d.cats)) throw new Error('Invalid format');
+      if (!confirm('This will replace all current data. Continue?')) return;
+      S.events   = d.events   || [];
+      S.cats     = d.cats     || [];
+      S.statuses = d.statuses || {};
+      save(); render();
+    } catch(e) { alert('Import failed: ' + e.message); }
+  };
+  r.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function btn(txt, cls) {
+  const b = document.createElement('button');
+  b.className = 'btn ' + cls;
+  b.textContent = txt;
+  return b;
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+function init() {
+  load();
+
+  document.getElementById('btn-prev').addEventListener('click', () => {
+    S.month--; if (S.month<0){S.month=11;S.year--;} render();
+  });
+  document.getElementById('btn-next').addEventListener('click', () => {
+    S.month++; if (S.month>11){S.month=0;S.year++;} render();
+  });
+
+  // Status badge autosave
+  const badge = document.getElementById('status-badge');
+  const saveBadge = () => {
+    const k = `${S.year}-${p2(S.month+1)}`;
+    S.statuses[k] = badge.textContent.trim() || 'Tentative';
+    save();
+  };
+  badge.addEventListener('blur', saveBadge);
+  badge.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();badge.blur();} });
+
+  // Category modal
+  document.getElementById('btn-cats').addEventListener('click', openCatModal);
+  document.getElementById('cat-close').addEventListener('click', closeCatModal);
+  document.getElementById('cat-save').addEventListener('click', saveCat);
+
+  // Export / Import
+  document.getElementById('btn-export').addEventListener('click', exportData);
+  document.getElementById('btn-import').addEventListener('click', () =>
+    document.getElementById('file-inp').click());
+  document.getElementById('file-inp').addEventListener('change', e => {
+    if (e.target.files[0]) importData(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // Auto-adjust end date when start changes
+  document.getElementById('ev-start').addEventListener('change', () => {
+    const s = document.getElementById('ev-start').value;
+    const e = document.getElementById('ev-end').value;
+    if (e && s > e) document.getElementById('ev-end').value = s;
+  });
+
+  // Close modals on overlay click
+  document.getElementById('ev-modal').addEventListener('click',  e => { if(e.target===e.currentTarget) closeEvModal(); });
+  document.getElementById('cat-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeCatModal(); });
+
+  // Escape key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeEvModal(); closeCatModal(); }
+  });
+
+  render();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
