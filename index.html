@@ -12,6 +12,7 @@
   --text:#2D3748;--muted:#718096;
   --today-bg:#EBF8FF;--dot:#ED8936;
   --sat:#F9F5FF;--sun:#FFF5F5;
+  --weekend-hdr:#5A67D8;
   --shadow:0 1px 4px rgba(0,0,0,.12);--r:6px;
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -41,7 +42,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 #cal-head{display:grid;grid-template-columns:repeat(7,1fr)}
 .col-hdr{padding:9px;text-align:center;font-size:11px;font-weight:700;
   letter-spacing:.09em;color:#fff;text-transform:uppercase;background:var(--primary)}
-.col-hdr.weekend{background:#5A67D8}
+.col-hdr.weekend{background:var(--weekend-hdr)}
 
 /* ── WEEK ROW ── */
 .week-row{position:relative;border-bottom:1px solid var(--border)}
@@ -154,6 +155,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 #eng-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 #eng-legend .day-dot{pointer-events:none;opacity:1}
 
+/* ── SETTINGS MODAL ── */
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.set-item{display:flex;flex-direction:column;gap:6px}
+.set-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.set-preview{height:32px;border-radius:4px;border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:11px;
+  font-weight:700;letter-spacing:.06em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.set-pick{display:flex;align-items:center;gap:6px;border:1px solid var(--border);
+  border-radius:4px;padding:4px 8px;cursor:pointer}
+.set-pick input[type=color]{width:26px;height:20px;border:none;padding:0;cursor:pointer;background:none}
+.set-pick-hex{font-size:12px;color:var(--muted);font-family:monospace}
+.set-reset{font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;
+  background:none;border:none;padding:0;margin-top:2px;text-align:left}
+
 /* ── BOTTOM LEGEND ── */
 #legend{display:flex;align-items:center;flex-wrap:wrap;gap:10px 20px;
   background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);
@@ -175,6 +190,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
     <button class="nav-btn" id="btn-next">&#8250;</button>
     <div style="flex:1"></div>
+    <button class="tbtn" id="btn-settings">&#9881; Settings</button>
     <button class="tbtn" id="btn-export">&#8593; Export</button>
     <button class="tbtn" id="btn-import">&#8595; Import</button>
     <input type="file" id="file-inp" accept=".json" style="display:none">
@@ -193,6 +209,51 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
   <div id="legend"></div>
   <div id="cat-panel"></div>
+</div>
+
+<!-- Settings Modal -->
+<div id="set-modal" class="modal-ov" style="display:none">
+  <div class="modal-box" style="min-width:420px">
+    <div class="modal-title">&#9881; Appearance Settings</div>
+    <div class="set-grid">
+      <div class="set-item">
+        <div class="set-label">Header ngày thường (MON–FRI)</div>
+        <div class="set-preview" id="prev-primary">MON TUE WED</div>
+        <div class="set-pick" onclick="document.getElementById('sc-primary').click()">
+          <input type="color" id="sc-primary" oninput="onThemeInput('primary',this.value)">
+          <span class="set-pick-hex" id="hex-primary">#2C5282</span>
+        </div>
+      </div>
+      <div class="set-item">
+        <div class="set-label">Header cuối tuần (SAT–SUN)</div>
+        <div class="set-preview" id="prev-weekend">SAT SUN</div>
+        <div class="set-pick" onclick="document.getElementById('sc-weekend').click()">
+          <input type="color" id="sc-weekend" oninput="onThemeInput('weekend',this.value)">
+          <span class="set-pick-hex" id="hex-weekend">#5A67D8</span>
+        </div>
+      </div>
+      <div class="set-item">
+        <div class="set-label">Nền ô Thứ 7</div>
+        <div class="set-preview" id="prev-sat" style="color:#555;text-shadow:none">SAT</div>
+        <div class="set-pick" onclick="document.getElementById('sc-sat').click()">
+          <input type="color" id="sc-sat" oninput="onThemeInput('sat',this.value)">
+          <span class="set-pick-hex" id="hex-sat">#F9F5FF</span>
+        </div>
+      </div>
+      <div class="set-item">
+        <div class="set-label">Nền ô Chủ nhật</div>
+        <div class="set-preview" id="prev-sun" style="color:#555;text-shadow:none">SUN</div>
+        <div class="set-pick" onclick="document.getElementById('sc-sun').click()">
+          <input type="color" id="sc-sun" oninput="onThemeInput('sun',this.value)">
+          <span class="set-pick-hex" id="hex-sun">#FFF5F5</span>
+        </div>
+      </div>
+    </div>
+    <div class="mact" style="justify-content:space-between;margin-top:20px">
+      <button class="set-reset btn btn-s" id="btn-reset-theme">↺ Reset về mặc định</button>
+      <button class="btn btn-p" id="btn-close-settings">Đóng</button>
+    </div>
+  </div>
 </div>
 
 <!-- Event Modal -->
@@ -792,6 +853,72 @@ function updateSwatch(row) {
 }
 
 // ═══════════════════════════════════════════════
+//  THEME / SETTINGS
+// ═══════════════════════════════════════════════
+const DEFAULT_THEME = {
+  primary:    '#2C5282',
+  weekend:    '#5A67D8',
+  sat:        '#F9F5FF',
+  sun:        '#FFF5F5',
+};
+
+function loadTheme() {
+  try {
+    const t = localStorage.getItem('schedcal_theme');
+    S.theme = t ? { ...DEFAULT_THEME, ...JSON.parse(t) } : { ...DEFAULT_THEME };
+  } catch(_) { S.theme = { ...DEFAULT_THEME }; }
+  applyTheme();
+}
+function saveTheme() {
+  localStorage.setItem('schedcal_theme', JSON.stringify(S.theme));
+}
+function applyTheme() {
+  const r = document.documentElement.style;
+  r.setProperty('--primary',      S.theme.primary);
+  r.setProperty('--primary-h',    darken(S.theme.primary));
+  r.setProperty('--weekend-hdr',  S.theme.weekend);
+  r.setProperty('--sat',          S.theme.sat);
+  r.setProperty('--sun',          S.theme.sun);
+}
+function darken(hex) {   // simple darkening for hover state
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.max(0,((n>>16)&255)-30);
+  const g = Math.max(0,((n>>8)&255)-30);
+  const b = Math.max(0,(n&255)-30);
+  return `#${[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('')}`;
+}
+
+function openSettings() {
+  const t = S.theme;
+  const setField = (id, val) => {
+    document.getElementById('sc-'+id).value    = val;
+    document.getElementById('hex-'+id).textContent = val;
+    document.getElementById('prev-'+id).style.background = val;
+  };
+  setField('primary', t.primary);
+  setField('weekend', t.weekend);
+  setField('sat',     t.sat);
+  setField('sun',     t.sun);
+  document.getElementById('set-modal').style.display = 'flex';
+}
+function closeSettings() {
+  document.getElementById('set-modal').style.display = 'none';
+}
+function onThemeInput(key, val) {
+  document.getElementById('hex-'+key).textContent      = val;
+  document.getElementById('prev-'+key).style.background = val;
+  S.theme[key] = val;
+  applyTheme();
+  saveTheme();
+}
+function resetTheme() {
+  S.theme = { ...DEFAULT_THEME };
+  applyTheme();
+  saveTheme();
+  openSettings();   // refresh pickers
+}
+
+// ═══════════════════════════════════════════════
 //  EXPORT / IMPORT
 // ═══════════════════════════════════════════════
 //  LEGEND
@@ -867,6 +994,14 @@ function btn(txt,cls) {
 // ═══════════════════════════════════════════════
 function init() {
   load();
+  loadTheme();
+
+  document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('btn-close-settings').addEventListener('click', closeSettings);
+  document.getElementById('btn-reset-theme').addEventListener('click', resetTheme);
+  document.getElementById('set-modal').addEventListener('click', e=>{
+    if(e.target===e.currentTarget) closeSettings();
+  });
 
   document.getElementById('btn-prev').addEventListener('click',()=>{
     S.month--; if(S.month<0){S.month=11;S.year--;} render();
