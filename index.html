@@ -268,6 +268,24 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <span id="col-w-val" style="font-size:12px;font-family:monospace;min-width:40px;color:var(--text)">auto</span>
       </div>
     </div>
+    <!-- Today highlight toggle -->
+    <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div class="set-label" style="margin-bottom:2px">Highlight ngày hôm nay</div>
+        <div style="font-size:12px;color:var(--muted)">Tô nền xanh ô ngày hiện tại</div>
+      </div>
+      <label style="display:flex;align-items:center;cursor:pointer;gap:8px">
+        <span style="font-size:12px;color:var(--muted)" id="today-hl-lbl">Bật</span>
+        <div id="today-hl-track" onclick="toggleTodayHighlight()"
+          style="width:40px;height:22px;border-radius:11px;background:#4299E1;
+          cursor:pointer;position:relative;transition:background .2s">
+          <div id="today-hl-thumb"
+            style="width:18px;height:18px;border-radius:50%;background:#fff;
+            position:absolute;top:2px;left:20px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)">
+          </div>
+        </div>
+      </label>
+    </div>
     <div class="mact" style="justify-content:space-between;margin-top:20px">
       <button class="set-reset btn btn-s" id="btn-reset-theme">↺ Reset về mặc định</button>
       <button class="btn btn-p" id="btn-close-settings">Đóng</button>
@@ -480,7 +498,7 @@ function render() {
       const cell = document.createElement('div');
       cell.className = 'day-cell' +
         (d.getMonth()!==month ? ' other-month' : '') +
-        (sameDay(d,today)     ? ' is-today'    : '') +
+        (sameDay(d,today) && S.theme.todayHighlight !== false ? ' is-today' : '') +
         (isSat                ? ' is-sat'      : '') +
         (isSun                ? ' is-sun'      : '');
       cell.dataset.date = dStr;
@@ -879,11 +897,12 @@ function updateSwatch(row) {
 //  THEME / SETTINGS
 // ═══════════════════════════════════════════════
 const DEFAULT_THEME = {
-  primary:    '#2C5282',
-  weekend:    '#5A67D8',
-  sat:        '#F9F5FF',
-  sun:        '#FFF5F5',
-  colWidth:   0,   // 0 = auto (1fr)
+  primary:       '#2C5282',
+  weekend:       '#5A67D8',
+  sat:           '#F9F5FF',
+  sun:           '#FFF5F5',
+  colWidth:      0,      // 0 = auto (1fr)
+  todayHighlight: true,
 };
 
 function loadTheme() {
@@ -935,7 +954,20 @@ function openSettings() {
   const cw = t.colWidth || 0;
   document.getElementById('col-w-slider').value = cw > 0 ? cw : 80;
   document.getElementById('col-w-val').textContent = cw > 0 ? cw+'px' : 'auto';
+  // Sync today highlight toggle
+  syncTodayToggleUI(t.todayHighlight !== false);
   document.getElementById('set-modal').style.display = 'flex';
+}
+function syncTodayToggleUI(on) {
+  document.getElementById('today-hl-track').style.background = on ? '#4299E1' : '#CBD5E0';
+  document.getElementById('today-hl-thumb').style.left = on ? '20px' : '2px';
+  document.getElementById('today-hl-lbl').textContent  = on ? 'Bật' : 'Tắt';
+}
+function toggleTodayHighlight() {
+  S.theme.todayHighlight = !(S.theme.todayHighlight !== false);
+  syncTodayToggleUI(S.theme.todayHighlight);
+  saveTheme();
+  render();
 }
 function onColWidthInput(val) {
   const v = parseInt(val);
