@@ -13,6 +13,7 @@
   --today-bg:#EBF8FF;--dot:#ED8936;
   --sat:#F9F5FF;--sun:#FFF5F5;
   --weekend-hdr:#5A67D8;
+  --col-w:1fr;
   --shadow:0 1px 4px rgba(0,0,0,.12);--r:6px;
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -39,7 +40,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── CALENDAR ── */
 #cal-wrap{background:var(--surface);border-radius:var(--r);
   box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
-#cal-head{display:grid;grid-template-columns:repeat(7,1fr)}
+#cal-wrap{overflow-x:auto}
+#cal-head{display:grid;grid-template-columns:repeat(7,var(--col-w))}
 .col-hdr{padding:9px;text-align:center;font-size:11px;font-weight:700;
   letter-spacing:.09em;color:#fff;text-transform:uppercase;background:var(--primary)}
 .col-hdr.weekend{background:var(--weekend-hdr)}
@@ -47,7 +49,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── WEEK ROW ── */
 .week-row{position:relative;border-bottom:1px solid var(--border)}
 .week-row:last-child{border-bottom:none}
-.days-grid{display:grid;grid-template-columns:repeat(7,1fr);height:100%}
+.days-grid{display:grid;grid-template-columns:repeat(7,var(--col-w));height:100%}
 .day-cell{border-right:1px solid var(--border);cursor:pointer;
   position:relative;transition:background .1s}
 .day-cell:last-child{border-right:none}
@@ -80,6 +82,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   overflow:hidden;border-radius:3px}
 .ev-bar:active{cursor:grabbing}
 .ev-bar.dragging{opacity:.25;pointer-events:none}
+/* Disable pointer-events on ALL bars while any drag is active */
+.dragging-active .ev-bar{pointer-events:none}
 .ev-bar .ev-title{flex:1;padding:0 5px;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;pointer-events:none}
 .rh{width:8px;height:100%;cursor:ew-resize;flex-shrink:0;
@@ -197,19 +201,22 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="tbtn" id="btn-import">&#8595; Import</button>
     <input type="file" id="file-inp" accept=".json" style="display:none">
   </div>
-  <div id="cal-wrap">
-    <div id="cal-head">
-      <div class="col-hdr">MON</div>
-      <div class="col-hdr">TUE</div>
-      <div class="col-hdr">WED</div>
-      <div class="col-hdr">THU</div>
-      <div class="col-hdr">FRI</div>
-      <div class="col-hdr weekend">SAT</div>
-      <div class="col-hdr weekend">SUN</div>
+  <!-- Only this div gets captured in Export Image -->
+  <div id="cal-capture">
+    <div id="cal-wrap">
+      <div id="cal-head">
+        <div class="col-hdr">MON</div>
+        <div class="col-hdr">TUE</div>
+        <div class="col-hdr">WED</div>
+        <div class="col-hdr">THU</div>
+        <div class="col-hdr">FRI</div>
+        <div class="col-hdr weekend">SAT</div>
+        <div class="col-hdr weekend">SUN</div>
+      </div>
+      <div id="cal-grid"></div>
     </div>
-    <div id="cal-grid"></div>
+    <div id="legend"></div>
   </div>
-  <div id="legend"></div>
   <div id="cat-panel"></div>
 </div>
 
@@ -249,6 +256,17 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
           <input type="color" id="sc-sun" oninput="onThemeInput('sun',this.value)">
           <span class="set-pick-hex" id="hex-sun">#FFF5F5</span>
         </div>
+      </div>
+    </div>
+    <!-- Column width slider -->
+    <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <div class="set-label" style="margin-bottom:8px">Độ rộng cột (Column width)</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:12px;color:var(--muted)">Tự động</span>
+        <input type="range" id="col-w-slider" min="80" max="260" step="10" value="0"
+          style="flex:1;cursor:pointer" oninput="onColWidthInput(this.value)">
+        <span style="font-size:12px;color:var(--muted)">Rộng</span>
+        <span id="col-w-val" style="font-size:12px;font-family:monospace;min-width:40px;color:var(--text)">auto</span>
       </div>
     </div>
     <div class="mact" style="justify-content:space-between;margin-top:20px">
@@ -582,6 +600,9 @@ function onDragMove(e) {
     if (Math.abs(dx)<5 && Math.abs(dy)<5) return;
 
     dragSt.isDragging = true;
+    // Disable pointer-events on ALL bars so elementFromPoint hits day cells
+    document.getElementById('cal-grid').classList.add('dragging-active');
+
     const anchorCell = document.elementFromPoint(dragSt.startX, dragSt.startY)?.closest('[data-date]');
     dragSt.anchor = anchorCell?.dataset.date ?? dragSt.origStart;
 
@@ -617,6 +638,7 @@ function onDragEnd(e) {
 
   const {eid, isDragging, previewStart, previewEnd} = dragSt;
   dragSt = null;
+  document.getElementById('cal-grid').classList.remove('dragging-active');
 
   if (!isDragging) { openEvModal(eid, null); return; }
 
@@ -862,6 +884,7 @@ const DEFAULT_THEME = {
   weekend:    '#5A67D8',
   sat:        '#F9F5FF',
   sun:        '#FFF5F5',
+  colWidth:   0,   // 0 = auto (1fr)
 };
 
 function loadTheme() {
@@ -881,6 +904,7 @@ function applyTheme() {
   r.setProperty('--weekend-hdr',  S.theme.weekend);
   r.setProperty('--sat',          S.theme.sat);
   r.setProperty('--sun',          S.theme.sun);
+  r.setProperty('--col-w',        S.theme.colWidth > 0 ? S.theme.colWidth+'px' : '1fr');
 }
 function darken(hex) {   // simple darkening for hover state
   const n = parseInt(hex.slice(1),16);
@@ -901,7 +925,18 @@ function openSettings() {
   setField('weekend', t.weekend);
   setField('sat',     t.sat);
   setField('sun',     t.sun);
+  // Sync col-width slider
+  const cw = t.colWidth || 0;
+  document.getElementById('col-w-slider').value = cw > 0 ? cw : 80;
+  document.getElementById('col-w-val').textContent = cw > 0 ? cw+'px' : 'auto';
   document.getElementById('set-modal').style.display = 'flex';
+}
+function onColWidthInput(val) {
+  const v = parseInt(val);
+  S.theme.colWidth = v;
+  document.getElementById('col-w-val').textContent = v+'px';
+  applyTheme();
+  saveTheme();
 }
 function closeSettings() {
   document.getElementById('set-modal').style.display = 'none';
@@ -928,24 +963,44 @@ async function exportImage() {
   btn.textContent = '⏳ Rendering...';
   btn.disabled = true;
 
-  // Capture: toolbar + calendar + legend
-  const target = document.getElementById('app');
+  // Capture only: month header + calendar grid + legend
+  const target = document.getElementById('cal-capture');
 
   try {
     const canvas = await html2canvas(target, {
-      scale: 2,                  // 2x = retina / high quality
+      scale: 2,
       useCORS: true,
-      backgroundColor: getComputedStyle(document.documentElement)
-        .getPropertyValue('--bg').trim() || '#F0F4F8',
+      backgroundColor: '#ffffff',
       logging: false,
       windowWidth: target.scrollWidth,
       windowHeight: target.scrollHeight,
     });
 
-    // Download PNG
+    // Add month/year label on top of the image
+    const LABEL_H = 48;
+    const out = document.createElement('canvas');
+    out.width  = canvas.width;
+    out.height = canvas.height + LABEL_H * 2;
+    const ctx = out.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out.width, out.height);
+
+    // Month + year text
+    const primary = getComputedStyle(document.documentElement)
+      .getPropertyValue('--primary').trim() || '#2C5282';
+    ctx.fillStyle = primary;
+    ctx.font = `bold ${LABEL_H}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${MONTHS[S.month]} ${S.year}`, out.width / 2, LABEL_H * 1.1);
+
+    // Calendar below the label
+    ctx.drawImage(canvas, 0, LABEL_H * 2);
+
     const link = document.createElement('a');
     link.download = `schedule-${MONTHS[S.month]}-${S.year}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = out.toDataURL('image/png');
     link.click();
   } catch(e) {
     alert('Export failed: ' + e.message);
