@@ -179,6 +179,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .leg-dot{width:10px;height:10px;border-radius:50%;background:var(--dot);
   flex-shrink:0;opacity:1}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -191,7 +192,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="nav-btn" id="btn-next">&#8250;</button>
     <div style="flex:1"></div>
     <button class="tbtn" id="btn-settings">&#9881; Settings</button>
-    <button class="tbtn" id="btn-export">&#8593; Export</button>
+    <button class="tbtn" id="btn-export-img">&#128444; Export Image</button>
+    <button class="tbtn" id="btn-export">&#8593; Export JSON</button>
     <button class="tbtn" id="btn-import">&#8595; Import</button>
     <input type="file" id="file-inp" accept=".json" style="display:none">
   </div>
@@ -919,6 +921,41 @@ function resetTheme() {
 }
 
 // ═══════════════════════════════════════════════
+//  EXPORT IMAGE
+// ═══════════════════════════════════════════════
+async function exportImage() {
+  const btn = document.getElementById('btn-export-img');
+  btn.textContent = '⏳ Rendering...';
+  btn.disabled = true;
+
+  // Capture: toolbar + calendar + legend
+  const target = document.getElementById('app');
+
+  try {
+    const canvas = await html2canvas(target, {
+      scale: 2,                  // 2x = retina / high quality
+      useCORS: true,
+      backgroundColor: getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg').trim() || '#F0F4F8',
+      logging: false,
+      windowWidth: target.scrollWidth,
+      windowHeight: target.scrollHeight,
+    });
+
+    // Download PNG
+    const link = document.createElement('a');
+    link.download = `schedule-${MONTHS[S.month]}-${S.year}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch(e) {
+    alert('Export failed: ' + e.message);
+  } finally {
+    btn.textContent = '🖼 Export Image';
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  EXPORT / IMPORT
 // ═══════════════════════════════════════════════
 //  LEGEND
@@ -1018,6 +1055,7 @@ function init() {
   badge.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();badge.blur();}});
 
 
+  document.getElementById('btn-export-img').addEventListener('click', exportImage);
   document.getElementById('btn-export').addEventListener('click', exportData);
   document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('file-inp').click());
   document.getElementById('file-inp').addEventListener('change',e=>{
