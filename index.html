@@ -119,27 +119,36 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .btn-s{background:#fff;color:var(--text)}
 .btn-s:hover{background:var(--bg)}
 
-/* ── CATEGORY MODAL ── */
-.cat-list{list-style:none;margin-bottom:14px;max-height:260px;overflow-y:auto}
-.cat-item{display:flex;align-items:center;gap:9px;padding:7px 4px;
+/* ── CATEGORY PANEL (inline, always visible) ── */
+#cat-panel{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);
+  padding:14px 18px;margin-top:10px}
+.cp-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.07em;margin-bottom:12px}
+.cp-row{display:flex;align-items:center;gap:8px;padding:6px 0;
   border-bottom:1px solid var(--border)}
-.cat-swatch{width:26px;height:18px;border-radius:3px;flex-shrink:0;
-  border:1px solid rgba(0,0,0,.1)}
-.cat-name-lbl{flex:1;font-size:14px}
-.cat-btn{padding:3px 8px;border-radius:3px;border:1px solid var(--border);
-  font-size:12px;cursor:pointer;background:#fff;transition:background .1s}
-.cat-btn:hover{background:var(--bg)}
-.cat-btn.del{color:#E53E3E;border-color:#FEB2B2}
-.cat-btn.del:hover{background:#FFF5F5}
-.cat-sep{border-top:1px solid var(--border);padding-top:14px;margin-top:4px}
-.cat-sub{font-size:13px;font-weight:600;margin-bottom:11px;color:var(--text)}
-.crow{display:flex;gap:10px;align-items:flex-end}
-.cgrp{flex:1}
-.cpick{display:flex;align-items:center;gap:6px;border:1px solid var(--border);
-  border-radius:4px;padding:4px 8px;cursor:pointer}
-.cpick input[type=color]{width:26px;height:20px;border:none;padding:0;
-  cursor:pointer;background:none}
-.chex{font-size:12px;color:var(--muted);font-family:monospace}
+.cp-row:last-child{border-bottom:none}
+.cp-swatch{width:32px;height:26px;border-radius:4px;flex-shrink:0;
+  border:1px solid rgba(0,0,0,.1);pointer-events:none}
+.cp-name{flex:1;min-width:80px;padding:5px 8px;border:1px solid var(--border);
+  border-radius:4px;font-size:13px;outline:none;font-family:inherit;transition:border-color .15s}
+.cp-name:focus{border-color:var(--accent)}
+.cp-color{display:flex;align-items:center;gap:5px;border:1px solid var(--border);
+  border-radius:4px;padding:3px 7px;cursor:pointer;transition:border-color .15s}
+.cp-color:hover{border-color:var(--accent)}
+.cp-color input[type=color]{width:24px;height:20px;border:none;padding:0;cursor:pointer;background:none}
+.cp-color-lbl{font-size:11px;color:var(--muted);font-family:monospace;min-width:46px}
+.cp-label{font-size:10px;color:var(--muted);text-align:center;line-height:1.2}
+.cp-col{display:flex;flex-direction:column;align-items:center;gap:2px}
+.cp-save{padding:5px 11px;border-radius:4px;border:1px solid var(--primary);
+  background:var(--primary);color:#fff;font-size:12px;cursor:pointer;
+  white-space:nowrap;transition:background .12s}
+.cp-save:hover{background:var(--primary-h)}
+.cp-del{padding:5px 10px;border-radius:4px;border:1px solid #FEB2B2;
+  background:#fff;color:#E53E3E;font-size:12px;cursor:pointer;transition:background .12s}
+.cp-del:hover{background:#FFF5F5}
+.cp-add{padding:5px 13px;border-radius:4px;border:1px solid #48BB78;
+  background:#48BB78;color:#fff;font-size:12px;cursor:pointer;transition:background .12s}
+.cp-add:hover{background:#38A169}
 
 /* English legend */
 #eng-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
@@ -167,7 +176,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="nav-btn" id="btn-next">&#8250;</button>
     <div style="flex:1"></div>
     <div id="eng-legend"><span class="day-dot active"></span> English session</div>
-    <button class="tbtn" id="btn-cats">&#9632; Categories</button>
     <button class="tbtn" id="btn-export">&#8593; Export</button>
     <button class="tbtn" id="btn-import">&#8595; Import</button>
     <input type="file" id="file-inp" accept=".json" style="display:none">
@@ -185,6 +193,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <div id="cal-grid"></div>
   </div>
   <div id="legend"></div>
+  <div id="cat-panel"></div>
 </div>
 
 <!-- Event Modal -->
@@ -207,43 +216,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </div>
 
-<!-- Category Modal -->
-<div id="cat-modal" class="modal-ov" style="display:none">
-  <div class="modal-box" style="min-width:430px">
-    <div class="modal-title">Manage Categories</div>
-    <ul class="cat-list" id="cat-list"></ul>
-    <div class="cat-sep">
-      <div class="cat-sub" id="cat-form-lbl">Add New Category</div>
-      <input type="hidden" id="cat-eid">
-      <div class="fg">
-        <label class="fl">Name</label>
-        <input type="text" class="fi" id="cat-name" placeholder="Category name">
-      </div>
-      <div class="crow">
-        <div class="cgrp">
-          <label class="fl">Background</label>
-          <div class="cpick" onclick="document.getElementById('cbg').click()">
-            <input type="color" id="cbg" value="#4A90D9"
-              oninput="document.getElementById('cbg-hex').textContent=this.value">
-            <span class="chex" id="cbg-hex">#4A90D9</span>
-          </div>
-        </div>
-        <div class="cgrp">
-          <label class="fl">Text</label>
-          <div class="cpick" onclick="document.getElementById('ctxt').click()">
-            <input type="color" id="ctxt" value="#ffffff"
-              oninput="document.getElementById('ctxt-hex').textContent=this.value">
-            <span class="chex" id="ctxt-hex">#ffffff</span>
-          </div>
-        </div>
-        <button class="btn btn-p" id="cat-save" style="margin-bottom:0;padding:8px 14px">Add</button>
-      </div>
-    </div>
-    <div class="mact">
-      <button class="btn btn-s" id="cat-close">Close</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ═══════════════════════════════════════════════
@@ -405,6 +377,7 @@ function render() {
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = '';
   renderLegend();
+  renderCatPanel();
 
   for (const wk of weeksOfMonth(year, month)) {
     const segs   = segmentsForWeek(wk);
@@ -698,63 +671,125 @@ function deleteEv() {
 }
 
 // ═══════════════════════════════════════════════
-//  CATEGORY MODAL
+//  CATEGORY PANEL (inline, always visible)
 // ═══════════════════════════════════════════════
-function openCatModal()  { renderCatList(); resetCatForm(); document.getElementById('cat-modal').style.display='flex'; }
-function closeCatModal() { document.getElementById('cat-modal').style.display='none'; }
+function renderCatPanel() {
+  const panel = document.getElementById('cat-panel');
+  panel.innerHTML = '';
 
-function renderCatList() {
-  const ul=document.getElementById('cat-list'); ul.innerHTML='';
+  const title = document.createElement('div');
+  title.className = 'cp-title';
+  title.textContent = 'Categories';
+  panel.appendChild(title);
+
+  // Existing categories
   for (const c of S.cats) {
-    const li=document.createElement('li'); li.className='cat-item';
-    const sw=document.createElement('div'); sw.className='cat-swatch'; sw.style.background=c.bg;
-    const nm=document.createElement('span'); nm.className='cat-name-lbl'; nm.textContent=c.name;
-    const eb=catBtn('Edit','');    eb.addEventListener('click',()=>editCat(c.id));
-    const db=catBtn('Delete','del'); db.addEventListener('click',()=>deleteCat(c.id));
-    li.append(sw,nm,eb,db); ul.appendChild(li);
+    panel.appendChild(makeCatRow(c.id, c.name, c.bg, c.fg, false));
   }
+
+  // "Add new" row
+  panel.appendChild(makeCatRow('__new__', '', '#4A90D9', '#ffffff', true));
 }
-function catBtn(txt,cls) {
-  const b=document.createElement('button'); b.className='cat-btn '+cls; b.textContent=txt; return b;
+
+function makeCatRow(cid, name, bg, fg, isNew) {
+  const row = document.createElement('div');
+  row.className = 'cp-row';
+  row.dataset.cid = cid;
+
+  // Preview swatch
+  const swatch = document.createElement('div');
+  swatch.className = 'cp-swatch';
+  swatch.style.background = bg;
+  swatch.style.color = fg;
+  swatch.textContent = 'Aa';
+  swatch.style.cssText += ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;';
+
+  // Name input
+  const nameInp = document.createElement('input');
+  nameInp.type = 'text';
+  nameInp.className = 'cp-name';
+  nameInp.value = name;
+  nameInp.placeholder = 'Category name';
+  nameInp.addEventListener('input', () => updateSwatch(row));
+
+  // BG color
+  const bgCol = makeColorPicker('Nền', bg, () => updateSwatch(row));
+
+  // FG color
+  const fgCol = makeColorPicker('Chữ', fg, () => updateSwatch(row));
+
+  // Action button
+  const actionBtn = document.createElement('button');
+  actionBtn.className = isNew ? 'cp-add' : 'cp-save';
+  actionBtn.textContent = isNew ? '+ Add' : 'Save';
+  actionBtn.addEventListener('click', () => {
+    const n  = nameInp.value.trim();
+    const b  = bgCol.querySelector('input[type=color]').value;
+    const f  = fgCol.querySelector('input[type=color]').value;
+    if (!n) { alert('Enter a category name.'); return; }
+    if (isNew) {
+      S.cats.push({ id: uid(), name: n, bg: b, fg: f });
+    } else {
+      const cat = S.cats.find(x => x.id === cid);
+      if (cat) Object.assign(cat, { name: n, bg: b, fg: f });
+    }
+    save(); render(); renderCatPanel();
+  });
+
+  row.append(swatch, nameInp, bgCol, fgCol, actionBtn);
+
+  // Delete button (existing only)
+  if (!isNew) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'cp-del';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', () => {
+      const used = S.events.filter(e => e.catId === cid).length;
+      if (!confirm(used
+        ? `Used by ${used} event(s). Delete anyway?`
+        : 'Delete this category?')) return;
+      S.cats = S.cats.filter(c => c.id !== cid);
+      save(); render(); renderCatPanel();
+    });
+    row.appendChild(delBtn);
+  }
+
+  return row;
 }
-function editCat(id) {
-  const c=S.cats.find(x=>x.id===id); if (!c) return;
-  document.getElementById('cat-eid').value        = id;
-  document.getElementById('cat-name').value       = c.name;
-  document.getElementById('cbg').value            = c.bg;
-  document.getElementById('cbg-hex').textContent  = c.bg;
-  document.getElementById('ctxt').value           = c.fg;
-  document.getElementById('ctxt-hex').textContent = c.fg;
-  document.getElementById('cat-form-lbl').textContent = 'Edit Category';
-  document.getElementById('cat-save').textContent     = 'Update';
+
+function makeColorPicker(label, value, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'cp-col';
+
+  const lbl = document.createElement('div');
+  lbl.className = 'cp-label';
+  lbl.textContent = label;
+
+  const pick = document.createElement('div');
+  pick.className = 'cp-color';
+
+  const inp = document.createElement('input');
+  inp.type = 'color';
+  inp.value = value;
+
+  const hex = document.createElement('span');
+  hex.className = 'cp-color-lbl';
+  hex.textContent = value;
+
+  inp.addEventListener('input', () => { hex.textContent = inp.value; onChange(); });
+  pick.appendChild(inp);
+  pick.appendChild(hex);
+  pick.addEventListener('click', () => inp.click());
+
+  wrap.append(lbl, pick);
+  return wrap;
 }
-function resetCatForm() {
-  document.getElementById('cat-eid').value        = '';
-  document.getElementById('cat-name').value       = '';
-  document.getElementById('cbg').value            = '#4A90D9';
-  document.getElementById('cbg-hex').textContent  = '#4A90D9';
-  document.getElementById('ctxt').value           = '#ffffff';
-  document.getElementById('ctxt-hex').textContent = '#ffffff';
-  document.getElementById('cat-form-lbl').textContent = 'Add New Category';
-  document.getElementById('cat-save').textContent     = 'Add';
-}
-function saveCat() {
-  const eid=document.getElementById('cat-eid').value;
-  const name=document.getElementById('cat-name').value.trim();
-  const bg=document.getElementById('cbg').value;
-  const fg=document.getElementById('ctxt').value;
-  if (!name){alert('Enter a category name.');return;}
-  if (eid) { const c=S.cats.find(x=>x.id===eid); if(c) Object.assign(c,{name,bg,fg}); }
-  else S.cats.push({id:uid(),name,bg,fg});
-  save(); renderCatList(); resetCatForm(); render();
-}
-function deleteCat(id) {
-  const used=S.events.filter(e=>e.catId===id).length;
-  if (!confirm(used
-    ? `This category is used by ${used} event(s). Delete anyway?`
-    : 'Delete this category?')) return;
-  S.cats=S.cats.filter(c=>c.id!==id);
-  save(); renderCatList(); render();
+
+function updateSwatch(row) {
+  const sw  = row.querySelector('.cp-swatch');
+  const bg  = row.querySelectorAll('input[type=color]')[0]?.value;
+  const fg  = row.querySelectorAll('input[type=color]')[1]?.value;
+  if (sw && bg) { sw.style.background = bg; sw.style.color = fg || '#fff'; }
 }
 
 // ═══════════════════════════════════════════════
@@ -848,9 +883,6 @@ function init() {
   });
   badge.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();badge.blur();}});
 
-  document.getElementById('btn-cats').addEventListener('click', openCatModal);
-  document.getElementById('cat-close').addEventListener('click', closeCatModal);
-  document.getElementById('cat-save').addEventListener('click', saveCat);
 
   document.getElementById('btn-export').addEventListener('click', exportData);
   document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('file-inp').click());
@@ -865,8 +897,7 @@ function init() {
   });
 
   document.getElementById('ev-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEvModal();});
-  document.getElementById('cat-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCatModal();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEvModal();closeCatModal();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') closeEvModal();});
 
   render();
 }
