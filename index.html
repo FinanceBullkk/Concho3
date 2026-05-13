@@ -11,10 +11,11 @@
   --bg:#F0F4F8;--surface:#fff;--border:#E2E8F0;
   --text:#2D3748;--muted:#718096;
   --today-bg:#EBF8FF;--dot:#ED8936;
+  --sat:#F9F5FF;--sun:#FFF5F5;
   --shadow:0 1px 4px rgba(0,0,0,.12);--r:6px;
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-#app{max-width:1280px;margin:0 auto;padding:16px 20px}
+#app{max-width:1400px;margin:0 auto;padding:16px 20px}
 
 /* ── TOOLBAR ── */
 #toolbar{display:flex;align-items:center;gap:10px;background:var(--surface);
@@ -37,25 +38,38 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── CALENDAR ── */
 #cal-wrap{background:var(--surface);border-radius:var(--r);
   box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
-#cal-head{display:grid;grid-template-columns:repeat(5,1fr);background:var(--primary)}
+#cal-head{display:grid;grid-template-columns:repeat(7,1fr)}
 .col-hdr{padding:9px;text-align:center;font-size:11px;font-weight:700;
-  letter-spacing:.09em;color:#fff;text-transform:uppercase}
+  letter-spacing:.09em;color:#fff;text-transform:uppercase;background:var(--primary)}
+.col-hdr.weekend{background:#5A67D8}
 
 /* ── WEEK ROW ── */
 .week-row{position:relative;border-bottom:1px solid var(--border)}
 .week-row:last-child{border-bottom:none}
-.days-grid{display:grid;grid-template-columns:repeat(5,1fr);height:100%}
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);height:100%}
 .day-cell{border-right:1px solid var(--border);cursor:pointer;
   position:relative;transition:background .1s}
 .day-cell:last-child{border-right:none}
 .day-cell:hover{background:#F7FAFC}
+.day-cell.is-sat{background:var(--sat)}
+.day-cell.is-sun{background:var(--sun)}
+.day-cell.is-sat:hover,.day-cell.is-sun:hover{filter:brightness(.97)}
 .day-cell.other-month .day-num{opacity:.38}
 .day-cell.is-today{background:var(--today-bg)}
 .day-cell.is-today .day-num{color:var(--accent);font-weight:700}
-.day-num-area{display:flex;align-items:center;gap:5px;padding:5px 8px;height:34px}
-.day-dot{width:7px;height:7px;border-radius:50%;background:var(--dot);flex-shrink:0}
-.day-num{font-size:13px;font-weight:600;color:var(--muted);pointer-events:none}
 .day-cell.drop-hi{background:#BEE3F8!important}
+
+.day-num-area{display:flex;align-items:center;gap:5px;padding:5px 8px;height:34px}
+
+/* Dot: mờ = chưa đánh dấu, sáng = có English session */
+.day-dot{width:8px;height:8px;border-radius:50%;background:var(--dot);
+  flex-shrink:0;cursor:pointer;opacity:.18;transition:opacity .15s,transform .1s}
+.day-dot:hover{opacity:.5;transform:scale(1.2)}
+.day-dot.active{opacity:1}
+.day-dot.active:hover{opacity:.8}
+
+.day-num{font-size:13px;font-weight:600;color:var(--muted);pointer-events:none}
+.day-cell.is-today .day-num{color:var(--accent)}
 
 /* ── EVENT BAR ── */
 .ev-bar{position:absolute;height:22px;display:flex;align-items:center;
@@ -124,6 +138,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .cpick input[type=color]{width:26px;height:20px;border:none;padding:0;
   cursor:pointer;background:none}
 .chex{font-size:12px;color:var(--muted);font-family:monospace}
+
+/* English legend */
+#eng-legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+#eng-legend .day-dot{pointer-events:none;opacity:1}
 </style>
 </head>
 <body>
@@ -136,6 +154,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
     <button class="nav-btn" id="btn-next">&#8250;</button>
     <div style="flex:1"></div>
+    <div id="eng-legend"><span class="day-dot active"></span> English session</div>
     <button class="tbtn" id="btn-cats">&#9632; Categories</button>
     <button class="tbtn" id="btn-export">&#8593; Export</button>
     <button class="tbtn" id="btn-import">&#8595; Import</button>
@@ -148,6 +167,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
       <div class="col-hdr">WED</div>
       <div class="col-hdr">THU</div>
       <div class="col-hdr">FRI</div>
+      <div class="col-hdr weekend">SAT</div>
+      <div class="col-hdr weekend">SUN</div>
     </div>
     <div id="cal-grid"></div>
   </div>
@@ -215,31 +236,38 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 // ═══════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════
-const SK = { ev:'schedcal_events', cats:'schedcal_categories', sts:'schedcal_statuses' };
+const SK = {
+  ev:  'schedcal_events',
+  cats:'schedcal_categories',
+  sts: 'schedcal_statuses',
+  eng: 'schedcal_english',       // English session days
+};
 const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
-const HDR_H  = 34;   // px – date-number strip
-const EV_H   = 22;   // px – bar height
-const EV_GAP = 4;    // px – gap between bars
+const DAYS_PER_WEEK = 7;
+const HDR_H   = 34;
+const EV_H    = 22;
+const EV_GAP  = 4;
 const TRACK_H = EV_H + EV_GAP;
-const PAD_B   = 8;   // px – bottom padding in row
-const EV_PAD  = 2;   // px – left/right inset per cell edge
+const PAD_B   = 8;
+const EV_PAD  = 2;
 
 // ═══════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════
 const S = {
-  events: [],
-  cats: [],
-  statuses: {},
-  year: new Date().getFullYear(),
-  month: new Date().getMonth(),   // 0-based
+  events:  [],
+  cats:    [],
+  statuses:{},
+  english: {},     // { "YYYY-MM-DD": true }
+  year:  new Date().getFullYear(),
+  month: new Date().getMonth(),
 };
 
-let editEvId  = null;
-let dragSt    = null;
-let resizeSt  = null;
-let ghostEl   = null;
+let editEvId = null;
+let dragSt   = null;
+let resizeSt = null;
+let ghostEl  = null;
 
 // ═══════════════════════════════════════════════
 //  STORAGE
@@ -249,15 +277,18 @@ function load() {
     const e = localStorage.getItem(SK.ev);
     const c = localStorage.getItem(SK.cats);
     const s = localStorage.getItem(SK.sts);
-    if (e) S.events = JSON.parse(e);
-    S.cats = c ? JSON.parse(c) : defaultCats();
-    if (s) S.statuses = JSON.parse(s);
+    const g = localStorage.getItem(SK.eng);
+    if (e) S.events   = JSON.parse(e);
+    S.cats             = c ? JSON.parse(c) : defaultCats();
+    if (s) S.statuses  = JSON.parse(s);
+    if (g) S.english   = JSON.parse(g);
   } catch(_) { S.cats = defaultCats(); }
 }
 function save() {
   localStorage.setItem(SK.ev,   JSON.stringify(S.events));
   localStorage.setItem(SK.cats, JSON.stringify(S.cats));
   localStorage.setItem(SK.sts,  JSON.stringify(S.statuses));
+  localStorage.setItem(SK.eng,  JSON.stringify(S.english));
 }
 function defaultCats() {
   return [
@@ -271,90 +302,79 @@ function defaultCats() {
 //  DATE UTILS
 // ═══════════════════════════════════════════════
 function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36); }
-
-function ds(d) {                         // Date → "YYYY-MM-DD"
-  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
-}
-function sd(s) {                         // "YYYY-MM-DD" → Date (local)
-  const [y,m,d] = s.split('-').map(Number);
-  return new Date(y, m-1, d);
-}
-function addD(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
-function p2(n) { return String(n).padStart(2,'0'); }
+function ds(d)  { return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; }
+function sd(s)  { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function addD(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function p2(n)  { return String(n).padStart(2,'0'); }
 function sameDay(a,b) {
   return a.getFullYear()===b.getFullYear() &&
          a.getMonth()===b.getMonth() &&
          a.getDate()===b.getDate();
 }
-function monday(d) {               // Monday of the week containing d
-  const r = new Date(d);
-  const dow = r.getDay();          // 0=Sun
-  r.setDate(r.getDate() - (dow === 0 ? 6 : dow - 1));
+function monday(d) {
+  const r=new Date(d), dow=r.getDay();
+  r.setDate(r.getDate()-(dow===0?6:dow-1));
   return r;
 }
 
 // ═══════════════════════════════════════════════
-//  CALENDAR STRUCTURE
+//  CALENDAR STRUCTURE  (Mon … Sun = 7 cols)
 // ═══════════════════════════════════════════════
-// Returns array of 5-element arrays [Mon..Fri]
 function weeksOfMonth(year, month) {
   const first = new Date(year, month, 1);
   const last  = new Date(year, month+1, 0);
   let wStart  = monday(first);
   const weeks = [];
   while (wStart <= last) {
-    weeks.push(Array.from({length:5}, (_,i) => addD(wStart, i)));
+    weeks.push(Array.from({length:7}, (_,i) => addD(wStart, i)));
     wStart = addD(wStart, 7);
   }
   return weeks;
 }
 
 // ═══════════════════════════════════════════════
-//  EVENT SEGMENT EXTRACTION
+//  EVENT SEGMENTS
 // ═══════════════════════════════════════════════
 function segmentsForWeek(weekDates) {
-  const mon = weekDates[0], fri = weekDates[4];
-  const monS = ds(mon), friS = ds(fri);
-  // Monday of previous week → Friday of previous week = mon - 3
-  const prevFri = addD(mon, -3);
-  // Monday of next week = fri + 3
-  const nextMon = addD(fri, 3);
+  const mon = weekDates[0], sun = weekDates[6];
+  const monS = ds(mon), sunS = ds(sun);
+  const prevSun = addD(mon, -1);   // last day of previous week
+  const nextMon = addD(sun,  1);   // first day of next week
 
   const segs = [];
   for (const ev of S.events) {
-    if (ev.end < monS || ev.start > friS) continue;
+    if (ev.end < monS || ev.start > sunS) continue;
 
     const clipS = ev.start < monS ? monS : ev.start;
-    const clipE = ev.end   > friS ? friS : ev.end;
+    const clipE = ev.end   > sunS ? sunS : ev.end;
 
     const sc = Math.round((sd(clipS) - mon) / 864e5);
     const ec = Math.round((sd(clipE) - mon) / 864e5);
-    if (sc > 4 || ec < 0) continue;
+    if (sc > 6 || ec < 0) continue;
 
-    const isStart = sd(ev.start) > prevFri;       // no visible segment in prev week
-    const isEnd   = sd(ev.end)   < nextMon;       // no visible segment in next week
+    const isStart = sd(ev.start) > prevSun;
+    const isEnd   = sd(ev.end)   < nextMon;
 
-    segs.push({ ev, sc: Math.max(0,sc), ec: Math.min(4,ec), isStart, isEnd, track:0 });
+    segs.push({ ev, sc: Math.max(0,sc), ec: Math.min(6,ec), isStart, isEnd, track:0 });
   }
-
   assignTracks(segs);
   return segs;
 }
 
 function assignTracks(segs) {
   segs.sort((a,b) => a.sc - b.sc || a.ev.id.localeCompare(b.ev.id));
-  const ends = [];   // ends[track] = last ec in that track
+  const ends = [];
   for (const s of segs) {
     let placed = false;
-    for (let t = 0; t < ends.length; t++) {
-      if (ends[t] < s.sc) { s.track = t; ends[t] = s.ec; placed = true; break; }
+    for (let t=0; t<ends.length; t++) {
+      if (ends[t] < s.sc) { s.track=t; ends[t]=s.ec; placed=true; break; }
     }
-    if (!placed) { s.track = ends.length; ends.push(s.ec); }
+    if (!placed) { s.track=ends.length; ends.push(s.ec); }
   }
 }
 
 function getCat(id) {
-  return S.cats.find(c => c.id === id) || { bg:'#CBD5E0', fg:'#4A5568', name:'?' };
+  return S.cats.find(c=>c.id===id) || { bg:'#CBD5E0', fg:'#4A5568', name:'?' };
 }
 
 // ═══════════════════════════════════════════════
@@ -366,7 +386,6 @@ function render() {
   const mKey  = `${year}-${p2(month+1)}`;
 
   document.getElementById('month-label').textContent = `${MONTHS[month]} ${year}`;
-
   const badge = document.getElementById('status-badge');
   badge.textContent = S.statuses[mKey] ?? 'Tentative';
 
@@ -376,32 +395,53 @@ function render() {
   for (const wk of weeksOfMonth(year, month)) {
     const segs   = segmentsForWeek(wk);
     const maxTrk = segs.length ? Math.max(...segs.map(s=>s.track))+1 : 0;
-    const rowH   = HDR_H + maxTrk * TRACK_H + PAD_B;
+    const rowH   = HDR_H + maxTrk*TRACK_H + PAD_B;
 
     const row = document.createElement('div');
     row.className = 'week-row';
-    row.style.height = rowH + 'px';
+    row.style.height = rowH+'px';
 
-    // Day cells
     const dg = document.createElement('div');
     dg.className = 'days-grid';
 
-    for (let col = 0; col < 5; col++) {
-      const d   = wk[col];
-      const dStr= ds(d);
-      const cell= document.createElement('div');
+    for (let col=0; col<7; col++) {
+      const d    = wk[col];
+      const dStr = ds(d);
+      const dow  = d.getDay();   // 0=Sun, 6=Sat
+      const isSat = dow === 6;
+      const isSun = dow === 0;
+
+      const cell = document.createElement('div');
       cell.className = 'day-cell' +
         (d.getMonth()!==month ? ' other-month' : '') +
-        (sameDay(d, today)    ? ' is-today'    : '');
+        (sameDay(d,today)     ? ' is-today'    : '') +
+        (isSat                ? ' is-sat'      : '') +
+        (isSun                ? ' is-sun'      : '');
       cell.dataset.date = dStr;
 
-      const na = document.createElement('div');
+      // Date number area
+      const na  = document.createElement('div');
       na.className = 'day-num-area';
+
+      // Orange dot — click to toggle English session
       const dot = document.createElement('span');
-      dot.className = 'day-dot';
+      dot.className = 'day-dot' + (S.english[dStr] ? ' active' : '');
+      dot.title = S.english[dStr] ? 'English session ✓ (click to remove)' : 'Click to mark English session';
+      dot.addEventListener('click', e => {
+        e.stopPropagation();
+        S.english[dStr] = !S.english[dStr];
+        if (!S.english[dStr]) delete S.english[dStr];
+        save();
+        dot.classList.toggle('active');
+        dot.title = S.english[dStr]
+          ? 'English session ✓ (click to remove)'
+          : 'Click to mark English session';
+      });
+
       const num = document.createElement('span');
       num.className = 'day-num';
       num.textContent = d.getDate();
+
       na.appendChild(dot);
       na.appendChild(num);
       cell.appendChild(na);
@@ -411,41 +451,36 @@ function render() {
     }
     row.appendChild(dg);
 
-    // Event bars
-    for (const seg of segs) {
-      row.appendChild(makeBar(seg));
-    }
-
+    for (const seg of segs) row.appendChild(makeBar(seg));
     grid.appendChild(row);
   }
 }
 
+// ═══════════════════════════════════════════════
+//  EVENT BAR
+// ═══════════════════════════════════════════════
 function makeBar(seg) {
   const {ev, sc, ec, isStart, isEnd, track} = seg;
-  const cat = getCat(ev.catId);
-  const colW = 100/5;
+  const cat  = getCat(ev.catId);
+  const colW = 100/DAYS_PER_WEEK;
 
   const bar = document.createElement('div');
-  bar.className = 'ev-bar' +
-    (isStart ? ' is-start' : '') +
-    (isEnd   ? ' is-end'   : '');
+  bar.className = 'ev-bar'+(isStart?' is-start':'')+(isEnd?' is-end':'');
   bar.dataset.eid = ev.id;
   bar.style.cssText = `
     background:${cat.bg};color:${cat.fg};
     left:calc(${sc*colW}% + ${EV_PAD}px);
     width:calc(${(ec-sc+1)*colW}% - ${EV_PAD*2}px);
-    top:${HDR_H + track*TRACK_H}px;
+    top:${HDR_H+track*TRACK_H}px;
   `;
 
-  // Left resize handle (only if this is the start segment)
   if (isStart) {
     const lh = document.createElement('div');
-    lh.className = 'rh';
-    lh.style.color = cat.fg;
-    lh.addEventListener('mousedown', e => { e.stopPropagation(); startResize(e, ev.id, 'left'); });
+    lh.className = 'rh'; lh.style.color = cat.fg;
+    lh.addEventListener('mousedown', e=>{e.stopPropagation();startResize(e,ev.id,'left');});
     bar.appendChild(lh);
   } else {
-    const sp = document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
+    const sp=document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
   }
 
   const title = document.createElement('span');
@@ -453,21 +488,17 @@ function makeBar(seg) {
   title.textContent = ev.title;
   bar.appendChild(title);
 
-  // Right resize handle (only if this is the end segment)
   if (isEnd) {
     const rh = document.createElement('div');
-    rh.className = 'rh';
-    rh.style.color = cat.fg;
-    rh.addEventListener('mousedown', e => { e.stopPropagation(); startResize(e, ev.id, 'right'); });
+    rh.className = 'rh'; rh.style.color = cat.fg;
+    rh.addEventListener('mousedown', e=>{e.stopPropagation();startResize(e,ev.id,'right');});
     bar.appendChild(rh);
   } else {
-    const sp = document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
+    const sp=document.createElement('div'); sp.style.width='8px'; bar.appendChild(sp);
   }
 
-  // Drag start (edit if mouse didn't move)
   bar.addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
-    if (e.target.classList.contains('rh')) return;
+    if (e.button!==0 || e.target.classList.contains('rh')) return;
     e.stopPropagation();
     startDrag(e, ev.id);
   });
@@ -481,7 +512,6 @@ function makeBar(seg) {
 function startDrag(e, eid) {
   e.preventDefault();
   const ev = S.events.find(x=>x.id===eid); if (!ev) return;
-  // Just record initial state — ghost & drag class created only after mouse moves 5px
   dragSt = {
     eid,
     origStart: ev.start, origEnd: ev.end,
@@ -497,20 +527,18 @@ function startDrag(e, eid) {
 function onDragMove(e) {
   if (!dragSt) return;
 
-  // Activate drag only after 5px movement threshold
   if (!dragSt.isDragging) {
     const dx = e.clientX - dragSt.startX;
     const dy = e.clientY - dragSt.startY;
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    if (Math.abs(dx)<5 && Math.abs(dy)<5) return;
 
     dragSt.isDragging = true;
-    // Determine anchor date from original mousedown position
     const anchorCell = document.elementFromPoint(dragSt.startX, dragSt.startY)?.closest('[data-date]');
     dragSt.anchor = anchorCell?.dataset.date ?? dragSt.origStart;
 
     const ev  = S.events.find(x=>x.id===dragSt.eid);
     const cat = getCat(ev.catId);
-    document.querySelectorAll(`[data-eid="${dragSt.eid}"]`).forEach(b => b.classList.add('dragging'));
+    document.querySelectorAll(`[data-eid="${dragSt.eid}"]`).forEach(b=>b.classList.add('dragging'));
     ghostEl = document.createElement('div');
     ghostEl.className = 'drag-ghost';
     ghostEl.textContent = ev.title;
@@ -519,15 +547,14 @@ function onDragMove(e) {
     document.body.appendChild(ghostEl);
   }
 
-  if (ghostEl) Object.assign(ghostEl.style, { top:e.clientY-11+'px', left:e.clientX+12+'px' });
-  document.querySelectorAll('.drop-hi').forEach(el => el.classList.remove('drop-hi'));
+  if (ghostEl) Object.assign(ghostEl.style,{top:e.clientY-11+'px',left:e.clientX+12+'px'});
+  document.querySelectorAll('.drop-hi').forEach(el=>el.classList.remove('drop-hi'));
 
   const dateStr = dateUnderCursor(e.clientX, e.clientY);
   if (!dateStr) return;
-  const cell = document.querySelector(`[data-date="${dateStr}"]`);
-  if (cell) cell.classList.add('drop-hi');
+  document.querySelector(`[data-date="${dateStr}"]`)?.classList.add('drop-hi');
 
-  const delta = Math.round((sd(dateStr) - sd(dragSt.anchor)) / 864e5);
+  const delta = Math.round((sd(dateStr)-sd(dragSt.anchor))/864e5);
   dragSt.previewStart = ds(addD(sd(dragSt.origStart), delta));
   dragSt.previewEnd   = ds(addD(sd(dragSt.origEnd),   delta));
 }
@@ -536,29 +563,25 @@ function onDragEnd(e) {
   if (!dragSt) return;
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup',   onDragEnd);
-  if (ghostEl) { ghostEl.remove(); ghostEl = null; }
-  document.querySelectorAll('.drop-hi').forEach(el => el.classList.remove('drop-hi'));
+  if (ghostEl) { ghostEl.remove(); ghostEl=null; }
+  document.querySelectorAll('.drop-hi').forEach(el=>el.classList.remove('drop-hi'));
 
-  const { eid, isDragging, previewStart, previewEnd } = dragSt;
+  const {eid, isDragging, previewStart, previewEnd} = dragSt;
   dragSt = null;
 
-  if (!isDragging) {
-    // Plain click → open edit modal
-    openEvModal(eid, null);
-    return;
-  }
+  if (!isDragging) { openEvModal(eid, null); return; }
 
   if (previewStart) {
     const ev = S.events.find(x=>x.id===eid);
-    if (ev) { ev.start = previewStart; ev.end = previewEnd; save(); }
+    if (ev) { ev.start=previewStart; ev.end=previewEnd; save(); }
   }
   render();
 }
 
-function dateUnderCursor(x, y) {
-  if (ghostEl) ghostEl.style.display = 'none';
-  const el = document.elementFromPoint(x, y);
-  if (ghostEl) ghostEl.style.display = '';
+function dateUnderCursor(x,y) {
+  if (ghostEl) ghostEl.style.display='none';
+  const el = document.elementFromPoint(x,y);
+  if (ghostEl) ghostEl.style.display='';
   return el?.closest('[data-date]')?.dataset.date ?? null;
 }
 
@@ -568,41 +591,30 @@ function dateUnderCursor(x, y) {
 function startResize(e, eid, handle) {
   e.preventDefault();
   const ev = S.events.find(x=>x.id===eid); if (!ev) return;
-  resizeSt = { eid, handle, origStart: ev.start, origEnd: ev.end };
+  resizeSt = {eid, handle, origStart:ev.start, origEnd:ev.end};
   document.addEventListener('mousemove', onResizeMove);
   document.addEventListener('mouseup',   onResizeEnd);
 }
-
 function onResizeMove(e) {
   if (!resizeSt) return;
-  const dateStr = dateUnderCursor(e.clientX, e.clientY);
-  if (!dateStr) return;
+  const dateStr = dateUnderCursor(e.clientX, e.clientY); if (!dateStr) return;
   const ev = S.events.find(x=>x.id===resizeSt.eid); if (!ev) return;
-
-  if (resizeSt.handle === 'left') {
-    if (dateStr <= ev.end) ev.start = dateStr;
-  } else {
-    if (dateStr >= ev.start) ev.end = dateStr;
-  }
+  if (resizeSt.handle==='left'  && dateStr<=ev.end)   ev.start = dateStr;
+  if (resizeSt.handle==='right' && dateStr>=ev.start) ev.end   = dateStr;
   render();
 }
-
 function onResizeEnd() {
   if (!resizeSt) return;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup',   onResizeEnd);
-
   const ev = S.events.find(x=>x.id===resizeSt.eid);
   if (ev) {
-    // Enforce minimum 1 day
-    if (ev.start > ev.end) {
-      if (resizeSt.handle==='left') ev.start = ev.end;
-      else ev.end = ev.start;
+    if (ev.start>ev.end) {
+      if (resizeSt.handle==='left') ev.start=ev.end; else ev.end=ev.start;
     }
     save();
   }
-  resizeSt = null;
-  render();
+  resizeSt=null; render();
 }
 
 // ═══════════════════════════════════════════════
@@ -623,110 +635,85 @@ function openEvModal(eid, defaultDate) {
     document.getElementById('ev-start').value = ev.start;
     document.getElementById('ev-end').value   = ev.end;
     catSel.value = ev.catId;
-
-    actionsEl.innerHTML = '';
-    const del = btn('Delete','btn-d'); del.addEventListener('click', deleteEv);
-    const row = document.createElement('div');
-    row.style.cssText='display:flex;gap:8px';
-    const can = btn('Cancel','btn-s'); can.addEventListener('click', closeEvModal);
-    const sav = btn('Save','btn-p');   sav.addEventListener('click', saveEv);
-    row.append(can, sav);
-    actionsEl.append(del, row);
-    actionsEl.style.justifyContent = 'space-between';
+    actionsEl.innerHTML='';
+    const del=btn('Delete','btn-d'); del.addEventListener('click',deleteEv);
+    const row=document.createElement('div'); row.style.cssText='display:flex;gap:8px';
+    const can=btn('Cancel','btn-s'); can.addEventListener('click',closeEvModal);
+    const sav=btn('Save','btn-p');   sav.addEventListener('click',saveEv);
+    row.append(can,sav); actionsEl.append(del,row);
+    actionsEl.style.justifyContent='space-between';
   } else {
-    titleEl.textContent = 'New Event';
-    document.getElementById('ev-title').value = '';
-    document.getElementById('ev-start').value = defaultDate||'';
-    document.getElementById('ev-end').value   = defaultDate||'';
-    if (S.cats.length) catSel.value = S.cats[0].id;
-
-    actionsEl.innerHTML = '';
-    const can = btn('Cancel','btn-s'); can.addEventListener('click', closeEvModal);
-    const sav = btn('Save','btn-p');   sav.addEventListener('click', saveEv);
-    actionsEl.append(can, sav);
-    actionsEl.style.justifyContent = 'flex-end';
+    titleEl.textContent='New Event';
+    document.getElementById('ev-title').value='';
+    document.getElementById('ev-start').value=defaultDate||'';
+    document.getElementById('ev-end').value=defaultDate||'';
+    if (S.cats.length) catSel.value=S.cats[0].id;
+    actionsEl.innerHTML='';
+    const can=btn('Cancel','btn-s'); can.addEventListener('click',closeEvModal);
+    const sav=btn('Save','btn-p');   sav.addEventListener('click',saveEv);
+    actionsEl.append(can,sav);
+    actionsEl.style.justifyContent='flex-end';
   }
-
-  document.getElementById('ev-modal').style.display = 'flex';
-  setTimeout(()=>document.getElementById('ev-title').focus(), 50);
+  document.getElementById('ev-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('ev-title').focus(),50);
 }
-
 function closeEvModal() {
-  document.getElementById('ev-modal').style.display = 'none';
-  editEvId = null;
+  document.getElementById('ev-modal').style.display='none'; editEvId=null;
 }
-
 function saveEv() {
-  const title = document.getElementById('ev-title').value.trim();
-  const start = document.getElementById('ev-start').value;
-  const end   = document.getElementById('ev-end').value;
-  const catId = document.getElementById('ev-cat').value;
-  if (!title) { alert('Please enter a title.'); return; }
-  if (!start) { alert('Please select a start date.'); return; }
-  if (!end)   { alert('Please select an end date.'); return; }
-  if (end < start) { alert('End date must be on or after start date.'); return; }
-
+  const title=document.getElementById('ev-title').value.trim();
+  const start=document.getElementById('ev-start').value;
+  const end  =document.getElementById('ev-end').value;
+  const catId=document.getElementById('ev-cat').value;
+  if (!title){alert('Please enter a title.');return;}
+  if (!start){alert('Please select a start date.');return;}
+  if (!end)  {alert('Please select an end date.');return;}
+  if (end<start){alert('End date must be on or after start date.');return;}
   if (editEvId) {
-    const ev = S.events.find(x=>x.id===editEvId);
-    if (ev) Object.assign(ev, {title, start, end, catId});
+    const ev=S.events.find(x=>x.id===editEvId);
+    if (ev) Object.assign(ev,{title,start,end,catId});
   } else {
-    S.events.push({id:uid(), title, start, end, catId});
+    S.events.push({id:uid(),title,start,end,catId});
   }
   save(); closeEvModal(); render();
 }
-
 function deleteEv() {
   if (!confirm('Delete this event?')) return;
-  S.events = S.events.filter(x=>x.id!==editEvId);
+  S.events=S.events.filter(x=>x.id!==editEvId);
   save(); closeEvModal(); render();
 }
 
 // ═══════════════════════════════════════════════
 //  CATEGORY MODAL
 // ═══════════════════════════════════════════════
-function openCatModal() {
-  renderCatList();
-  resetCatForm();
-  document.getElementById('cat-modal').style.display = 'flex';
-}
-function closeCatModal() { document.getElementById('cat-modal').style.display = 'none'; }
+function openCatModal()  { renderCatList(); resetCatForm(); document.getElementById('cat-modal').style.display='flex'; }
+function closeCatModal() { document.getElementById('cat-modal').style.display='none'; }
 
 function renderCatList() {
-  const ul = document.getElementById('cat-list');
-  ul.innerHTML = '';
+  const ul=document.getElementById('cat-list'); ul.innerHTML='';
   for (const c of S.cats) {
-    const li = document.createElement('li');
-    li.className = 'cat-item';
-    const sw = document.createElement('div');
-    sw.className = 'cat-swatch';
-    sw.style.background = c.bg;
-    const nm = document.createElement('span'); nm.className='cat-name-lbl'; nm.textContent=c.name;
-    const eb = catBtn('Edit',  '');    eb.addEventListener('click',()=>editCat(c.id));
-    const db = catBtn('Delete','del'); db.addEventListener('click',()=>deleteCat(c.id));
-    li.append(sw, nm, eb, db);
-    ul.appendChild(li);
+    const li=document.createElement('li'); li.className='cat-item';
+    const sw=document.createElement('div'); sw.className='cat-swatch'; sw.style.background=c.bg;
+    const nm=document.createElement('span'); nm.className='cat-name-lbl'; nm.textContent=c.name;
+    const eb=catBtn('Edit','');    eb.addEventListener('click',()=>editCat(c.id));
+    const db=catBtn('Delete','del'); db.addEventListener('click',()=>deleteCat(c.id));
+    li.append(sw,nm,eb,db); ul.appendChild(li);
   }
 }
-
-function catBtn(txt, cls) {
-  const b = document.createElement('button');
-  b.className = 'cat-btn ' + cls;
-  b.textContent = txt;
-  return b;
+function catBtn(txt,cls) {
+  const b=document.createElement('button'); b.className='cat-btn '+cls; b.textContent=txt; return b;
 }
-
 function editCat(id) {
-  const c = S.cats.find(x=>x.id===id); if (!c) return;
-  document.getElementById('cat-eid').value       = id;
-  document.getElementById('cat-name').value      = c.name;
-  document.getElementById('cbg').value           = c.bg;
-  document.getElementById('cbg-hex').textContent = c.bg;
-  document.getElementById('ctxt').value          = c.fg;
-  document.getElementById('ctxt-hex').textContent= c.fg;
+  const c=S.cats.find(x=>x.id===id); if (!c) return;
+  document.getElementById('cat-eid').value        = id;
+  document.getElementById('cat-name').value       = c.name;
+  document.getElementById('cbg').value            = c.bg;
+  document.getElementById('cbg-hex').textContent  = c.bg;
+  document.getElementById('ctxt').value           = c.fg;
+  document.getElementById('ctxt-hex').textContent = c.fg;
   document.getElementById('cat-form-lbl').textContent = 'Edit Category';
   document.getElementById('cat-save').textContent     = 'Update';
 }
-
 function resetCatForm() {
   document.getElementById('cat-eid').value        = '';
   document.getElementById('cat-name').value       = '';
@@ -737,30 +724,22 @@ function resetCatForm() {
   document.getElementById('cat-form-lbl').textContent = 'Add New Category';
   document.getElementById('cat-save').textContent     = 'Add';
 }
-
 function saveCat() {
-  const eid  = document.getElementById('cat-eid').value;
-  const name = document.getElementById('cat-name').value.trim();
-  const bg   = document.getElementById('cbg').value;
-  const fg   = document.getElementById('ctxt').value;
-  if (!name) { alert('Enter a category name.'); return; }
-
-  if (eid) {
-    const c = S.cats.find(x=>x.id===eid);
-    if (c) Object.assign(c, {name, bg, fg});
-  } else {
-    S.cats.push({id:uid(), name, bg, fg});
-  }
+  const eid=document.getElementById('cat-eid').value;
+  const name=document.getElementById('cat-name').value.trim();
+  const bg=document.getElementById('cbg').value;
+  const fg=document.getElementById('ctxt').value;
+  if (!name){alert('Enter a category name.');return;}
+  if (eid) { const c=S.cats.find(x=>x.id===eid); if(c) Object.assign(c,{name,bg,fg}); }
+  else S.cats.push({id:uid(),name,bg,fg});
   save(); renderCatList(); resetCatForm(); render();
 }
-
 function deleteCat(id) {
-  const used = S.events.filter(e=>e.catId===id).length;
-  const msg  = used
-    ? `This category is used by ${used} event(s). Delete anyway? Affected events will use the default style.`
-    : 'Delete this category?';
-  if (!confirm(msg)) return;
-  S.cats = S.cats.filter(c=>c.id!==id);
+  const used=S.events.filter(e=>e.catId===id).length;
+  if (!confirm(used
+    ? `This category is used by ${used} event(s). Delete anyway?`
+    : 'Delete this category?')) return;
+  S.cats=S.cats.filter(c=>c.id!==id);
   save(); renderCatList(); render();
 }
 
@@ -768,26 +747,25 @@ function deleteCat(id) {
 //  EXPORT / IMPORT
 // ═══════════════════════════════════════════════
 function exportData() {
-  const blob = new Blob([JSON.stringify({version:1,events:S.events,cats:S.cats,statuses:S.statuses},null,2)],
-    {type:'application/json'});
-  const a = Object.assign(document.createElement('a'),
-    {href:URL.createObjectURL(blob), download:`schedule-${ds(new Date())}.json`});
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const blob=new Blob([JSON.stringify({version:1,events:S.events,cats:S.cats,
+    statuses:S.statuses,english:S.english},null,2)],{type:'application/json'});
+  const a=Object.assign(document.createElement('a'),
+    {href:URL.createObjectURL(blob),download:`schedule-${ds(new Date())}.json`});
+  a.click(); URL.revokeObjectURL(a.href);
 }
-
 function importData(file) {
-  const r = new FileReader();
-  r.onload = ev => {
+  const r=new FileReader();
+  r.onload=ev=>{
     try {
-      const d = JSON.parse(ev.target.result);
-      if (!Array.isArray(d.events) || !Array.isArray(d.cats)) throw new Error('Invalid format');
+      const d=JSON.parse(ev.target.result);
+      if (!Array.isArray(d.events)||!Array.isArray(d.cats)) throw new Error('Invalid format');
       if (!confirm('This will replace all current data. Continue?')) return;
       S.events   = d.events   || [];
       S.cats     = d.cats     || [];
       S.statuses = d.statuses || {};
+      S.english  = d.english  || {};
       save(); render();
-    } catch(e) { alert('Import failed: ' + e.message); }
+    } catch(e){alert('Import failed: '+e.message);}
   };
   r.readAsText(file);
 }
@@ -795,11 +773,9 @@ function importData(file) {
 // ═══════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════
-function btn(txt, cls) {
-  const b = document.createElement('button');
-  b.className = 'btn ' + cls;
-  b.textContent = txt;
-  return b;
+function btn(txt,cls) {
+  const b=document.createElement('button');
+  b.className='btn '+cls; b.textContent=txt; return b;
 }
 
 // ═══════════════════════════════════════════════
@@ -808,52 +784,39 @@ function btn(txt, cls) {
 function init() {
   load();
 
-  document.getElementById('btn-prev').addEventListener('click', () => {
-    S.month--; if (S.month<0){S.month=11;S.year--;} render();
+  document.getElementById('btn-prev').addEventListener('click',()=>{
+    S.month--; if(S.month<0){S.month=11;S.year--;} render();
   });
-  document.getElementById('btn-next').addEventListener('click', () => {
-    S.month++; if (S.month>11){S.month=0;S.year++;} render();
+  document.getElementById('btn-next').addEventListener('click',()=>{
+    S.month++; if(S.month>11){S.month=0;S.year++;} render();
   });
 
-  // Status badge autosave
-  const badge = document.getElementById('status-badge');
-  const saveBadge = () => {
-    const k = `${S.year}-${p2(S.month+1)}`;
-    S.statuses[k] = badge.textContent.trim() || 'Tentative';
-    save();
-  };
-  badge.addEventListener('blur', saveBadge);
-  badge.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();badge.blur();} });
+  const badge=document.getElementById('status-badge');
+  badge.addEventListener('blur',()=>{
+    const k=`${S.year}-${p2(S.month+1)}`;
+    S.statuses[k]=badge.textContent.trim()||'Tentative'; save();
+  });
+  badge.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();badge.blur();}});
 
-  // Category modal
   document.getElementById('btn-cats').addEventListener('click', openCatModal);
   document.getElementById('cat-close').addEventListener('click', closeCatModal);
   document.getElementById('cat-save').addEventListener('click', saveCat);
 
-  // Export / Import
   document.getElementById('btn-export').addEventListener('click', exportData);
-  document.getElementById('btn-import').addEventListener('click', () =>
-    document.getElementById('file-inp').click());
-  document.getElementById('file-inp').addEventListener('change', e => {
-    if (e.target.files[0]) importData(e.target.files[0]);
-    e.target.value = '';
+  document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('file-inp').click());
+  document.getElementById('file-inp').addEventListener('change',e=>{
+    if(e.target.files[0]) importData(e.target.files[0]); e.target.value='';
   });
 
-  // Auto-adjust end date when start changes
-  document.getElementById('ev-start').addEventListener('change', () => {
-    const s = document.getElementById('ev-start').value;
-    const e = document.getElementById('ev-end').value;
-    if (e && s > e) document.getElementById('ev-end').value = s;
+  document.getElementById('ev-start').addEventListener('change',()=>{
+    const s=document.getElementById('ev-start').value;
+    const e=document.getElementById('ev-end').value;
+    if(e&&s>e) document.getElementById('ev-end').value=s;
   });
 
-  // Close modals on overlay click
-  document.getElementById('ev-modal').addEventListener('click',  e => { if(e.target===e.currentTarget) closeEvModal(); });
-  document.getElementById('cat-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeCatModal(); });
-
-  // Escape key
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEvModal(); closeCatModal(); }
-  });
+  document.getElementById('ev-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEvModal();});
+  document.getElementById('cat-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCatModal();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEvModal();closeCatModal();}});
 
   render();
 }
