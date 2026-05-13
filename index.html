@@ -1002,40 +1002,47 @@ async function exportImage() {
   btn.textContent = '⏳ Rendering...';
   btn.disabled = true;
 
-  // Capture only: month header + calendar grid + legend
-  const target = document.getElementById('cal-capture');
+  const target  = document.getElementById('cal-capture');
+  const calWrap = document.getElementById('cal-wrap');
+
+  // Tạm co target về đúng width lịch để loại bỏ khoảng trắng thừa
+  const exactW     = calWrap.scrollWidth;
+  const savedStyle = target.getAttribute('style') || '';
+  target.style.cssText = `width:${exactW}px;display:inline-block`;
+
+  // Đợi browser repaint
+  await new Promise(r => requestAnimationFrame(r));
 
   try {
+    const SCALE  = 2;
     const canvas = await html2canvas(target, {
-      scale: 2,
-      useCORS: true,
+      scale:           SCALE,
+      useCORS:         true,
       backgroundColor: '#ffffff',
-      logging: false,
-      windowWidth: target.scrollWidth,
-      windowHeight: target.scrollHeight,
+      logging:         false,
+      width:           exactW,
+      height:          target.scrollHeight,
     });
 
-    // Add month/year label on top of the image
-    const LABEL_H = 48;
+    // Thêm tiêu đề tháng/năm căn giữa
+    const LABEL_H = 56;
     const out = document.createElement('canvas');
     out.width  = canvas.width;
-    out.height = canvas.height + LABEL_H * 2;
+    out.height = canvas.height + LABEL_H * SCALE;
     const ctx = out.getContext('2d');
 
-    // Background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, out.width, out.height);
 
-    // Month + year text
     const primary = getComputedStyle(document.documentElement)
       .getPropertyValue('--primary').trim() || '#2C5282';
-    ctx.fillStyle = primary;
-    ctx.font = `bold ${LABEL_H}px 'Segoe UI', system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(`${MONTHS[S.month]} ${S.year}`, out.width / 2, LABEL_H * 1.1);
+    ctx.fillStyle    = primary;
+    ctx.font         = `bold ${Math.round(LABEL_H * SCALE * 0.65)}px 'Segoe UI', system-ui, sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${MONTHS[S.month]} ${S.year}`, out.width / 2, (LABEL_H * SCALE) / 2);
 
-    // Calendar below the label
-    ctx.drawImage(canvas, 0, LABEL_H * 2);
+    ctx.drawImage(canvas, 0, LABEL_H * SCALE);
 
     const link = document.createElement('a');
     link.download = `schedule-${MONTHS[S.month]}-${S.year}.png`;
@@ -1044,6 +1051,8 @@ async function exportImage() {
   } catch(e) {
     alert('Export failed: ' + e.message);
   } finally {
+    // Restore style
+    target.setAttribute('style', savedStyle);
     btn.textContent = '🖼 Export Image';
     btn.disabled = false;
   }
