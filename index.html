@@ -16,7 +16,8 @@
   --shadow:0 1px 4px rgba(0,0,0,.12);--r:6px;
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-#app{max-width:1400px;margin:0 auto;padding:16px 20px}
+#app{max-width:none;margin:0 auto;padding:16px 20px}
+#toolbar{max-width:1400px;margin:0 auto}
 
 /* ── TOOLBAR ── */
 #toolbar{display:flex;align-items:center;gap:10px;background:var(--surface);
@@ -39,7 +40,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── CALENDAR ── */
 #cal-wrap{background:var(--surface);border-radius:var(--r);
   box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
-#cal-capture{overflow-x:auto}
+body{overflow-x:auto}
 #cal-head{display:grid;grid-template-columns:repeat(7,1fr)}
 .col-hdr{padding:9px;text-align:center;font-size:11px;font-weight:700;
   letter-spacing:.09em;color:#fff;text-transform:uppercase;background:var(--primary)}
